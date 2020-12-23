@@ -17,22 +17,28 @@ from sklearn.model_selection import train_test_split
 from torchvision.transforms import Compose, ToTensor, Resize
 from torch.utils.data import DataLoader
 
-def split_dataset(dataset, splits: list = [0.8, 0.1, 0.1]):
-    assert len(splits) >= 1
-    for split in splits:
+
+def split_dataset(dataset, splits: list = [0.8, 0.1, 0.1], shuffles: list = [True, False, False], batch_size: int = 1):
+    assert len(splits) >= 1 and len(shuffles) >= 1
+    assert len(splits) == len(shuffles)
+    for split, shuffle in zip(splits, shuffles):
         assert isinstance(split, float) and split > 0
+        assert isinstance(shuffle, bool)
     assert np.isclose(np.sum(splits), 1)
 
     splits_amounts = []
     for i_split, split in enumerate(splits):
-        if i_split < len(splits)-1:
+        if i_split < len(splits) - 1:
             splits_amounts += [int(split * len(dataset))]
         else:
             splits_amounts += [len(dataset) - np.sum(splits_amounts)]
     assert np.sum(splits_amounts) == len(dataset)
 
     subsets = torch.utils.data.random_split(dataset, splits_amounts)
-    return subsets
+    dataloaders = [DataLoader(subset, batch_size=batch_size, shuffle=shuffle, num_workers=1)
+                   for subset, shuffle in zip(subsets, shuffles)]
+    return dataloaders
+
 
 def load_lfw_dataset(filepath: str, transform=None):
     # eventually creates empty directories

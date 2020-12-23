@@ -12,7 +12,13 @@ transform = transforms.Compose([
     transforms.ToTensor()
 ])
 lfw_dataset = load_lfw_dataset(filepath=assets_path, transform=transform)
-lfw_subset_train, lfw_subset_val, lfw_subset_test = split_dataset(lfw_dataset, [0.8, 0.1, 0.1])
+lfw_dataloader_train, lfw_dataloader_val, lfw_dataloader_test = split_dataset(lfw_dataset, splits=[0.8, 0.1, 0.1],
+                                                                              batch_size=30)
+
+for dataloader in [lfw_dataloader_train, lfw_dataloader_val, lfw_dataloader_test]:
+    print(len(dataloader))
+
+
 
 
 
