@@ -10,7 +10,7 @@ from torch import nn, optim
 from torchvision import models, transforms, datasets
 from torch.utils.data import DataLoader
 
-from utils import load_lfw_dataset, split_dataset, show_img
+from utils import load_lfw_dataset, split_dataset, show_img, read_json
 from utils import psnr
 
 
@@ -66,6 +66,7 @@ class Classifier(CustomModule):
 
 def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
           lr: float = 1e-4, epochs: int = 5, batches_per_epoch: int = None,
+          data_augmentation_transforms = None,
           filepath: str = None, verbose: bool = True):
     # checks about model's parameters
     assert isinstance(model, nn.Module)
@@ -107,6 +108,11 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                 # gets input data
                 X, y = batch[0].to(model.device), \
                        batch[1].to(model.device)
+
+                # applies some data augmentation
+                if phase == "train" and data_augmentation_transforms:
+                    for i_img, img in enumerate(X):
+                        X[i_img] = data_augmentation_transforms(img)
 
                 # forward pass
                 with torch.set_grad_enabled(phase == 'train'):
@@ -159,19 +165,28 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
 
 
 if __name__ == "__main__":
+    parameters_path = join("..", "parameters.json")
     assets_path = join("..", "assets")
     lfw_path = join(assets_path, "lfw")
 
-    transform = transforms.Compose([
-        transforms.Resize(224),
-        transforms.CenterCrop(224),
+    parameters = read_json(filepath=parameters_path)
+
+    lfw_dataset_train, lfw_dataset_test = load_lfw_dataset(filepath=assets_path)
+    labels = {label.item() for image, label in lfw_dataset_train}
+
+    lfw_dataloader_train, lfw_dataloader_test = DataLoader(dataset=lfw_dataset_train, shuffle=True,
+                                                           batch_size=parameters["training"]["batch_size"]), \
+                                                DataLoader(dataset=lfw_dataset_test, shuffle=True,
+                                                           batch_size=parameters["training"]["batch_size"])
+
+    data_augmentation_transforms = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.RandomHorizontalFlip(p=0.5),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
-    lfw_dataset = load_lfw_dataset(filepath=assets_path, transform=transform)
-    lfw_dataloader_train, lfw_dataloader_test = split_dataset(lfw_dataset, splits=[0.8, 0.2],
-                                                              batch_size=30)
 
-    classifier = Classifier(num_classes=len(lfw_dataset), pretrained=True)
-    train(classifier, epochs=50,
+    classifier = Classifier(num_classes=len(labels), pretrained=True)
+    train(classifier, epochs=parameters["training"]["epochs"],
+          data_augmentation_transforms=data_augmentation_transforms,
           data_train=lfw_dataloader_train, data_val=lfw_dataloader_test)

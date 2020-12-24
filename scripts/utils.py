@@ -8,6 +8,9 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
+from sklearn.model_selection import train_test_split
+from sklearn.datasets import fetch_lfw_people
+
 import torch
 from torch import nn
 from torch.utils.data import Dataset, Subset, DataLoader, random_split
@@ -40,29 +43,22 @@ def split_dataset(dataset: Dataset, splits: list, shuffles: list = None,
     return dataloaders
 
 
-def load_lfw_dataset(filepath: str, transform=None):
+def load_lfw_dataset(filepath: str):
     # eventually creates empty directories
     if not exists(filepath):
         makedirs(filepath)
-    lfw_path = join(filepath, "lfw")
-    if not exists(lfw_path):
-        # downloads the zipped file to the folder
-        lfw_zipped_filepath = join(filepath, "lfw_zipped.tgz")
-        if not exists(lfw_zipped_filepath):
-            print(f"Downloading zipped file into {lfw_zipped_filepath}")
-            urllib.request.urlretrieve("http://vis-www.cs.umass.edu/lfw/lfw.tgz", lfw_zipped_filepath)
-        else:
-            if md5(open(lfw_zipped_filepath, 'rb').read()).hexdigest() != "a17d05bd522c52d84eca14327a23d494":
-                print(f"Zipped file {lfw_zipped_filepath} is corrupted and is now being re-downloaded")
-                urllib.request.urlretrieve("http://vis-www.cs.umass.edu/lfw/lfw.tgz", lfw_zipped_filepath)
-        # extracts the files
-        print(f"Extracting the files")
-        tarfile.open(lfw_zipped_filepath).extractall(filepath)
-        # removes the zipped file
-        remove(lfw_zipped_filepath)
-    # loads the dataset as a tensor
-    imagenet_data = ImageFolder(lfw_path, transform=transform)
-    return imagenet_data
+    # downloads or fetches the dataset
+    lfw_dataset = fetch_lfw_people(min_faces_per_person=4, resize=1, color=True,
+                                   funneled=True, data_home=filepath)
+    X, y = np.transpose(lfw_dataset.images, (0, 3, 1, 2))/255, lfw_dataset.target
+
+    # split into a training and testing set
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y,
+                                                        random_state=42)
+    # zips Xs and ys
+    lfw_train_dataset, lfw_test_dataset = list(zip(torch.from_numpy(X_train), torch.from_numpy(y_train))), \
+                                          list(zip(torch.from_numpy(X_test), torch.from_numpy(y_test)))
+    return lfw_train_dataset, lfw_test_dataset
 
 
 def read_json(filepath: str):
