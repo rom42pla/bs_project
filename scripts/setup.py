@@ -44,13 +44,8 @@ class Classifier(CustomModule):
 
         # takes the feature extractor layers of the model
         resnet = models.resnet18(pretrained=pretrained)
-        for parameter in resnet.parameters():
-            parameter.requires_grad = False
-
         # changes the last classification layer to tune the model for another task
         resnet.fc = nn.Linear(resnet.fc.in_features, num_classes)
-        for parameter in resnet.fc.parameters():
-            parameter.requires_grad = True
 
         self.layers = nn.Sequential(
             resnet
@@ -118,8 +113,9 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
 
                 # applies some data augmentation
                 if phase == "train" and data_augmentation_transforms:
+                    X_data_augmented = torch.zeros(size=(X.shape[0], X.shape[1], 94, 94)).to(model.device)
                     for i_img, img in enumerate(X):
-                        X[i_img] = data_augmentation_transforms(img)
+                        X_data_augmented[i_img] = data_augmentation_transforms(img)
 
                 # forward pass
                 with torch.set_grad_enabled(phase == 'train'):
@@ -156,8 +152,8 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                             "epoch": epoch,
                             "phase": phase,
                             "avg loss": np.mean(epoch_losses[:i_batch]),
-                            "avg PSNR": np.mean(epoch_psnrs[:i_batch]),
-                            "avg F1 scores": np.mean(epoch_f1[:i_batch]),
+                            #"avg PSNR": np.mean(epoch_psnrs[:i_batch]),
+                            "avg F1": np.mean(epoch_f1[:i_batch]),
                             "avg accuracy": np.mean(epoch_accuracy[:i_batch]),
                             "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
                         }))
@@ -199,6 +195,7 @@ if __name__ == "__main__":
     data_augmentation_transforms = transforms.Compose([
         transforms.ToPILImage(),
         transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomCrop(94),
         transforms.ToTensor()
     ])
 
