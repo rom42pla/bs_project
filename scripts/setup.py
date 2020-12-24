@@ -4,9 +4,11 @@ import copy
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import f1_score, accuracy_score
 
 import torch
 from torch import nn, optim
+import torch.nn.functional as F
 from torchvision import models, transforms, datasets
 from torch.utils.data import DataLoader
 
@@ -58,15 +60,18 @@ class Classifier(CustomModule):
         self.to(self.device)
 
     def forward(self, X: torch.Tensor):
-        # X = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-        #                          std=[0.229, 0.224, 0.225])(X)
+        X = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225])(X)
         out = self.layers(X)
+
+        if not self.training:
+            out = F.log_softmax(out, dim=-1)
         return out
 
 
 def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
           lr: float = 1e-4, epochs: int = 5, batches_per_epoch: int = None,
-          data_augmentation_transforms = None,
+          data_augmentation_transforms=None,
           filepath: str = None, verbose: bool = True):
     # checks about model's parameters
     assert isinstance(model, nn.Module)
@@ -96,9 +101,11 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
 
             batches_to_do = min(batches_per_epoch if batches_per_epoch else len(data), len(data))
 
-            epoch_losses, epoch_psnrs = np.zeros(shape=batches_to_do), \
-                                        np.zeros(shape=batches_to_do)
-            epoch_ce_losses = np.zeros(shape=batches_to_do)
+            epoch_losses, epoch_f1, epoch_accuracy = np.zeros(shape=batches_to_do), \
+                                                     np.zeros(shape=batches_to_do), \
+                                                     np.zeros(shape=batches_to_do)
+            epoch_ce_losses, epoch_psnrs = np.zeros(shape=batches_to_do), \
+                                           np.zeros(shape=batches_to_do)
 
             for i_batch, batch in enumerate(data):
                 # eventually early stops the training
@@ -127,12 +134,20 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                     loss.backward()
                     optimizer.step()
 
-                epoch_losses[i_batch], epoch_psnrs[i_batch] = ce_loss, \
-                                                              psnr(X, X)
-                epoch_ce_losses[i_batch] = ce_loss
+                y_pred_labels = torch.argmax(y_pred.detach().cpu(), dim=-1)
+
+                epoch_losses[i_batch], epoch_f1[i_batch], epoch_accuracy[i_batch] = ce_loss, \
+                                                                                    f1_score(
+                                                                                        y_true=y.detach().cpu().numpy(),
+                                                                                        y_pred=y_pred_labels.cpu().numpy(),
+                                                                                        average="macro"), \
+                                                                                    accuracy_score(
+                                                                                        y_true=y.detach().cpu().numpy(),
+                                                                                        y_pred=y_pred_labels.cpu().numpy()),
+                epoch_ce_losses[i_batch], epoch_psnrs[i_batch], = ce_loss, psnr(X, X)
 
                 # statistics
-                if verbose and i_batch in np.linspace(start=1, stop=batches_to_do, num=20, dtype=np.int):
+                if verbose and i_batch in np.linspace(start=1, stop=batches_to_do, num=5, dtype=np.int):
                     time_elapsed = time.time() - since
                     print(pd.DataFrame(
                         index=[
@@ -140,8 +155,10 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                         data={
                             "epoch": epoch,
                             "phase": phase,
-                            f"avg loss": np.mean(epoch_losses[:i_batch]),
+                            "avg loss": np.mean(epoch_losses[:i_batch]),
                             "avg PSNR": np.mean(epoch_psnrs[:i_batch]),
+                            "avg F1 scores": np.mean(epoch_f1[:i_batch]),
+                            "avg accuracy": np.mean(epoch_accuracy[:i_batch]),
                             "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
                         }))
 
@@ -182,8 +199,7 @@ if __name__ == "__main__":
     data_augmentation_transforms = transforms.Compose([
         transforms.ToPILImage(),
         transforms.RandomHorizontalFlip(p=0.5),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        transforms.ToTensor()
     ])
 
     classifier = Classifier(num_classes=len(labels), pretrained=True)
