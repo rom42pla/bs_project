@@ -10,13 +10,15 @@ import matplotlib.pyplot as plt
 
 import torch
 from torch import nn
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import Dataset, Subset, DataLoader, random_split
 from torchvision.datasets import ImageFolder
 from torchvision.utils import save_image
 
 
-
-def split_dataset(dataset, splits: list = [0.8, 0.1, 0.1], shuffles: list = [True, False, False], batch_size: int = 1):
+def split_dataset(dataset: Dataset, splits: list, shuffles: list = None,
+                  batch_size: int = 1):
+    if shuffles is None:
+        shuffles = [False for _ in splits]
     assert len(splits) >= 1 and len(shuffles) >= 1
     assert len(splits) == len(shuffles)
     for split, shuffle in zip(splits, shuffles):
@@ -61,6 +63,7 @@ def load_lfw_dataset(filepath: str, transform=None):
     # loads the dataset as a tensor
     imagenet_data = ImageFolder(lfw_path, transform=transform)
     return imagenet_data
+
 
 def read_json(filepath: str):
     with open(filepath, "r") as fp:

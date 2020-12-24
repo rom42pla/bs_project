@@ -7,7 +7,7 @@ import pandas as pd
 
 import torch
 from torch import nn, optim
-from torchvision import models, transforms
+from torchvision import models, transforms, datasets
 from torch.utils.data import DataLoader
 
 from utils import load_lfw_dataset, split_dataset, show_img
@@ -43,12 +43,12 @@ class Classifier(CustomModule):
         # takes the feature extractor layers of the model
         resnet = models.resnet18(pretrained=pretrained)
         for parameter in resnet.parameters():
-           parameter.requires_grad = False
+            parameter.requires_grad = False
 
         # changes the last classification layer to tune the model for another task
         resnet.fc = nn.Linear(resnet.fc.in_features, num_classes)
         for parameter in resnet.fc.parameters():
-           parameter.requires_grad = True
+            parameter.requires_grad = True
 
         self.layers = nn.Sequential(
             resnet
@@ -165,12 +165,13 @@ if __name__ == "__main__":
     transform = transforms.Compose([
         transforms.Resize(224),
         transforms.CenterCrop(224),
-        transforms.ToTensor()
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
     lfw_dataset = load_lfw_dataset(filepath=assets_path, transform=transform)
-    lfw_dataloader_train, lfw_dataloader_val, lfw_dataloader_test = split_dataset(lfw_dataset, splits=[0.8, 0.1, 0.1],
-                                                                                  batch_size=30)
+    lfw_dataloader_train, lfw_dataloader_test = split_dataset(lfw_dataset, splits=[0.8, 0.2],
+                                                              batch_size=30)
 
-    classifier = Classifier(num_classes=len(lfw_dataset.targets), pretrained=True)
-    train(classifier,
-          data_train=lfw_dataloader_train, data_val=lfw_dataloader_val)
+    classifier = Classifier(num_classes=len(lfw_dataset), pretrained=True)
+    train(classifier, epochs=50,
+          data_train=lfw_dataloader_train, data_val=lfw_dataloader_test)
