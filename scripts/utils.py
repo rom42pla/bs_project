@@ -1,21 +1,19 @@
-import os
 from os import makedirs, remove
 from os.path import join, exists, isfile
 import urllib.request
 from hashlib import md5
 import tarfile
+import json
 
 import numpy as np
-
-import torchvision
-from torchvision.datasets import ImageFolder
+import matplotlib.pyplot as plt
 
 import torch
+from torch import nn
+from torch.utils.data import DataLoader, random_split
 from torchvision.datasets import ImageFolder
-from torch.utils.data import Subset, random_split
-from sklearn.model_selection import train_test_split
-from torchvision.transforms import Compose, ToTensor, Resize
-from torch.utils.data import DataLoader
+from torchvision.utils import save_image
+
 
 
 def split_dataset(dataset, splits: list = [0.8, 0.1, 0.1], shuffles: list = [True, False, False], batch_size: int = 1):
@@ -34,7 +32,7 @@ def split_dataset(dataset, splits: list = [0.8, 0.1, 0.1], shuffles: list = [Tru
             splits_amounts += [len(dataset) - np.sum(splits_amounts)]
     assert np.sum(splits_amounts) == len(dataset)
 
-    subsets = torch.utils.data.random_split(dataset, splits_amounts)
+    subsets = random_split(dataset, splits_amounts)
     dataloaders = [DataLoader(subset, batch_size=batch_size, shuffle=shuffle, num_workers=1)
                    for subset, shuffle in zip(subsets, shuffles)]
     return dataloaders
@@ -63,3 +61,35 @@ def load_lfw_dataset(filepath: str, transform=None):
     # loads the dataset as a tensor
     imagenet_data = ImageFolder(lfw_path, transform=transform)
     return imagenet_data
+
+def read_json(filepath: str):
+    with open(filepath, "r") as fp:
+        return json.load(fp)
+
+
+def save_json(d: dict, filepath: str):
+    with open(filepath, "w") as fp:
+        return json.dump(d, fp, indent=4)
+
+
+def show_img(*imgs: torch.Tensor, filename: str = None, save_to_folder: str = None):
+    assert not save_to_folder or isinstance(save_to_folder, str)
+    imgs = list(imgs)
+    for i_img, img in enumerate(imgs):
+        assert isinstance(img, torch.Tensor)
+        assert len(img.shape) == 3
+        if save_to_folder:
+            filename = filename if filename else f"img_{i_img}"
+            save_image(img, join(save_to_folder, f"{filename}.png"))
+        imgs[i_img] = img.permute(1, 2, 0).to("cpu").numpy()
+    fig, axs = plt.subplots(1, len(imgs), squeeze=False)
+    for i_ax, ax in enumerate(axs.flat):
+        ax.imshow(imgs[i_ax])
+    plt.show()
+
+
+def psnr(img1, img2):
+    mse = torch.mean((img1 - img2) ** 2)
+    if mse == 0:
+        return np.inf
+    return 20 * torch.log10(1 / torch.sqrt(mse))

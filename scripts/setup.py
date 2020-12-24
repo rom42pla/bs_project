@@ -1,29 +1,176 @@
 from os.path import join
+import time
+import copy
 
-from utils import load_lfw_dataset, split_dataset
-from torchvision import transforms
+import numpy as np
+import pandas as pd
 
-assets_path = join("..", "assets")
-lfw_path = join(assets_path, "lfw")
+import torch
+from torch import nn, optim
+from torchvision import models, transforms
+from torch.utils.data import DataLoader
 
-transform = transforms.Compose([
-    transforms.Resize(250),
-    transforms.CenterCrop(250),
-    transforms.ToTensor()
-])
-lfw_dataset = load_lfw_dataset(filepath=assets_path, transform=transform)
-lfw_dataloader_train, lfw_dataloader_val, lfw_dataloader_test = split_dataset(lfw_dataset, splits=[0.8, 0.1, 0.1],
-                                                                              batch_size=30)
-
-for dataloader in [lfw_dataloader_train, lfw_dataloader_val, lfw_dataloader_test]:
-    print(len(dataloader))
+from utils import load_lfw_dataset, split_dataset, show_img
+from utils import psnr
 
 
+class AddGaussianNoise(nn.Module):
+    def __init__(self, mean=0., std=1.):
+        super(AddGaussianNoise, self).__init__()
+        self.std, self.mean = std, mean
+
+    def forward(self, X):
+        return X + torch.randn(X.size()) * self.std + self.mean
 
 
+# base class for each custom module
+class CustomModule(nn.Module):
+    def __init__(self, device: str = "auto"):
+        super(CustomModule, self).__init__()
+        # checks that the device is correctly given
+        assert device in {"cpu", "cuda", "auto"}
+        self.device = device if device in {"cpu", "cuda"} \
+            else "cuda" if torch.cuda.is_available() else "cpu"
 
 
+class Classifier(CustomModule):
+    def __init__(self, num_classes: int = 13233, pretrained: bool = True,
+                 device: str = "auto"):
+        super(Classifier, self).__init__(device=device)
+
+        assert isinstance(pretrained, bool)
+
+        # takes the feature extractor layers of the model
+        resnet = models.resnet18(pretrained=pretrained)
+        for parameter in resnet.parameters():
+           parameter.requires_grad = False
+
+        # changes the last classification layer to tune the model for another task
+        resnet.fc = nn.Linear(resnet.fc.in_features, num_classes)
+        for parameter in resnet.fc.parameters():
+           parameter.requires_grad = True
+
+        self.layers = nn.Sequential(
+            resnet
+        )
+
+        # moves the entire model to the chosen device
+        self.to(self.device)
+
+    def forward(self, X: torch.Tensor):
+        # X = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+        #                          std=[0.229, 0.224, 0.225])(X)
+        out = self.layers(X)
+        return out
 
 
+def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
+          lr: float = 1e-4, epochs: int = 5, batches_per_epoch: int = None,
+          filepath: str = None, verbose: bool = True):
+    # checks about model's parameters
+    assert isinstance(model, nn.Module)
+    assert isinstance(data_train, DataLoader)
+    assert isinstance(data_val, DataLoader)
+    assert not filepath or isinstance(filepath, str)
+    # checks on other parameters
+    assert isinstance(verbose, bool)
+    assert isinstance(lr, float) and lr > 0
+    assert isinstance(epochs, int) and epochs >= 1
+
+    since = time.time()
+    best_epoch_loss, best_model_weights = np.inf, \
+                                          copy.deepcopy(model.state_dict())
+
+    optimizer = optim.Adam(params=model.parameters(), lr=lr)
+
+    for epoch in range(epochs):
+        for phase in ['train', 'val']:
+            data = data_train if phase == "train" else data_val
+
+            if phase == 'train':
+                model.train()
+            else:
+                with torch.no_grad():
+                    model.eval()
+
+            batches_to_do = min(batches_per_epoch if batches_per_epoch else len(data), len(data))
+
+            epoch_losses, epoch_psnrs = np.zeros(shape=batches_to_do), \
+                                        np.zeros(shape=batches_to_do)
+            epoch_ce_losses = np.zeros(shape=batches_to_do)
+
+            for i_batch, batch in enumerate(data):
+                # eventually early stops the training
+                if batches_per_epoch and i_batch >= batches_to_do:
+                    break
+
+                # gets input data
+                X, y = batch[0].to(model.device), \
+                       batch[1].to(model.device)
+
+                # forward pass
+                with torch.set_grad_enabled(phase == 'train'):
+                    y_pred = model(X)
+
+                ce_loss = nn.CrossEntropyLoss()(y_pred, y)
+                loss = ce_loss
+
+                # backward pass
+                if phase == 'train':
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
+
+                epoch_losses[i_batch], epoch_psnrs[i_batch] = ce_loss, \
+                                                              psnr(X, X)
+                epoch_ce_losses[i_batch] = ce_loss
+
+                # statistics
+                if verbose and i_batch in np.linspace(start=1, stop=batches_to_do, num=20, dtype=np.int):
+                    time_elapsed = time.time() - since
+                    print(pd.DataFrame(
+                        index=[
+                            f"batch {i_batch + 1} of {batches_to_do}"],
+                        data={
+                            "epoch": epoch,
+                            "phase": phase,
+                            f"avg loss": np.mean(epoch_losses[:i_batch]),
+                            "avg PSNR": np.mean(epoch_psnrs[:i_batch]),
+                            "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
+                        }))
+
+            # deep copy the model
+            avg_epoch_loss = np.mean(epoch_losses)
+            if phase == 'val' and avg_epoch_loss < best_epoch_loss:
+                print(f"Found best model with loss {avg_epoch_loss}")
+                best_epoch_loss, best_model_weights = avg_epoch_loss, \
+                                                      copy.deepcopy(model.state_dict())
+
+    time_elapsed = time.time() - since
+    print('Training completed in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
+    # load best model weights
+    model.load_state_dict(best_model_weights)
+    # saves to a file
+    if filepath:
+        torch.save(model, filepath)
+        print(f"Model saved to {filepath}")
+    return model
 
 
+if __name__ == "__main__":
+    assets_path = join("..", "assets")
+    lfw_path = join(assets_path, "lfw")
+
+    transform = transforms.Compose([
+        transforms.Resize(224),
+        transforms.CenterCrop(224),
+        transforms.ToTensor()
+    ])
+    lfw_dataset = load_lfw_dataset(filepath=assets_path, transform=transform)
+    lfw_dataloader_train, lfw_dataloader_val, lfw_dataloader_test = split_dataset(lfw_dataset, splits=[0.8, 0.1, 0.1],
+                                                                                  batch_size=30)
+
+    classifier = Classifier(num_classes=len(lfw_dataset.targets), pretrained=True)
+    train(classifier,
+          data_train=lfw_dataloader_train, data_val=lfw_dataloader_val)
