@@ -48,7 +48,7 @@ def load_lfw_dataset(filepath: str):
     if not exists(filepath):
         makedirs(filepath)
     # downloads or fetches the dataset
-    lfw_dataset = fetch_lfw_people(min_faces_per_person=4, resize=1, color=True,
+    lfw_dataset = fetch_lfw_people(min_faces_per_person=20, resize=1, color=True,
                                    funneled=True, data_home=filepath)
     X, y = np.transpose(lfw_dataset.images, (0, 3, 1, 2))/255, lfw_dataset.target
 

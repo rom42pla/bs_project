@@ -65,8 +65,8 @@ class Classifier(CustomModule):
 
 
 def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
-          lr: float = 1e-4, epochs: int = 5, batches_per_epoch: int = None,
-          data_augmentation_transforms=None,
+          lr: float = 1e-5, epochs: int = 5, batches_per_epoch: int = None,
+          data_augmentation_transforms=None, resize: bool = False,
           filepath: str = None, verbose: bool = True):
     # checks about model's parameters
     assert isinstance(model, nn.Module)
@@ -111,11 +111,19 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                 X, y = batch[0].to(model.device), \
                        batch[1].to(model.device)
 
+                # resizes the image
+                if resize:
+                    square_edge = min(X.shape[2:])
+                    X_resized = torch.zeros(size=(X.shape[0], X.shape[1], square_edge, square_edge)).to(model.device)
+                    for i_img, img in enumerate(X):
+                        X_resized[i_img] = transforms.RandomCrop(square_edge)(img) if phase == "train" \
+                            else transforms.CenterCrop(square_edge)(img)
+                    X = X_resized
+
                 # applies some data augmentation
                 if phase == "train" and data_augmentation_transforms:
-                    X_data_augmented = torch.zeros(size=(X.shape[0], X.shape[1], 94, 94)).to(model.device)
                     for i_img, img in enumerate(X):
-                        X_data_augmented[i_img] = data_augmentation_transforms(img)
+                        X[i_img] = data_augmentation_transforms(img)
 
                 # forward pass
                 with torch.set_grad_enabled(phase == 'train'):
@@ -152,7 +160,7 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                             "epoch": epoch,
                             "phase": phase,
                             "avg loss": np.mean(epoch_losses[:i_batch]),
-                            #"avg PSNR": np.mean(epoch_psnrs[:i_batch]),
+                            # "avg PSNR": np.mean(epoch_psnrs[:i_batch]),
                             "avg F1": np.mean(epoch_f1[:i_batch]),
                             "avg accuracy": np.mean(epoch_accuracy[:i_batch]),
                             "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
@@ -194,12 +202,15 @@ if __name__ == "__main__":
 
     data_augmentation_transforms = transforms.Compose([
         transforms.ToPILImage(),
+        transforms.RandomVerticalFlip(p=0.2),
         transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomCrop(94),
+        transforms.ColorJitter(brightness=0.1, saturation=0.1, contrast=0.1, hue=0.1),
+        transforms.RandomApply([transforms.Grayscale(num_output_channels=3)], p=0.1),
+        transforms.RandomAffine(degrees=15),
         transforms.ToTensor()
     ])
 
     classifier = Classifier(num_classes=len(labels), pretrained=True)
     train(classifier, epochs=parameters["training"]["epochs"],
-          data_augmentation_transforms=data_augmentation_transforms,
+          data_augmentation_transforms=data_augmentation_transforms, resize=True,
           data_train=lfw_dataloader_train, data_val=lfw_dataloader_test)
