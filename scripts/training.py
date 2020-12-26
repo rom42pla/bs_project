@@ -4,7 +4,7 @@ import copy
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import f1_score, accuracy_score, confusion_matrix
+from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score, roc_auc_score
 import matplotlib.pyplot as plt
 
 import torch
@@ -14,7 +14,7 @@ from torchvision import models, transforms, datasets
 from torch.utils.data import DataLoader
 
 from utils import load_lfw_dataset, split_dataset, show_img, read_json
-from utils import plot_roc_curve, psnr
+from utils import plot_roc_curve, plot_losses, plot_stats, psnr
 
 
 # base class for each custom module
@@ -76,7 +76,8 @@ class Classifier(CustomModule):
 def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
           lr: float = 1e-5, epochs: int = 5, batches_per_epoch: int = None,
           data_augmentation_transforms=None, resize: bool = False, add_noise: bool = True,
-          filepath: str = None, verbose: bool = True):
+          filepath: str = None, verbose: bool = True,
+          plot_roc: bool = False, plot_loss: bool = True, plot_other_stats: bool = True):
     # checks about model's parameters
     assert isinstance(model, nn.Module)
     assert isinstance(data_train, DataLoader)
@@ -85,14 +86,17 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
     assert not filepath or isinstance(filepath, str)
     # checks on other parameters
     assert isinstance(verbose, bool)
+    assert isinstance(plot_loss, bool)
+    assert isinstance(plot_roc, bool)
+    assert isinstance(plot_other_stats, bool)
     assert isinstance(lr, float) and lr > 0
     assert isinstance(epochs, int) and epochs >= 1
 
     since = time.time()
     best_epoch_loss, best_model_weights = np.inf, \
                                           copy.deepcopy(model.state_dict())
-    losses, false_positives, false_negatives = np.zeros(shape=epochs), \
-                                               [], []
+    train_losses, test_losses = [], []
+    accuracies, precisions, recalls, f1_scores = [], [], [], []
     optimizer = optim.Adam(params=model.parameters(), lr=lr)
 
     for epoch in range(epochs):
@@ -201,7 +205,14 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                 print(f"Found best model with loss {avg_epoch_loss}")
                 best_epoch_loss, best_model_weights = avg_epoch_loss, \
                                                       copy.deepcopy(model.state_dict())
-            losses[epoch] = avg_epoch_loss
+            if phase == "train":
+                train_losses += [avg_epoch_loss]
+            else:
+                test_losses += [avg_epoch_loss]
+                accuracies += [accuracy_score(y_true=epoch_y, y_pred=epoch_y_pred)]
+                precisions += [precision_score(y_true=epoch_y, y_pred=epoch_y_pred, average="macro")]
+                recalls += [recall_score(y_true=epoch_y, y_pred=epoch_y_pred, average="macro")]
+                f1_scores += [f1_score(y_true=epoch_y, y_pred=epoch_y_pred, average="macro")]
 
     '''
     E N D
@@ -211,22 +222,20 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
     time_elapsed = time.time() - since
     print('Training completed in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
 
-    plot_roc_curve(epoch_y, epoch_y_pred, labels=range(model.num_classes))
-
-    plt.plot(losses)
-    # plt.plot(multi_history.history['val_loss'])
-    plt.title('model loss')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    # plt.legend(['train', 'val'], loc='upper left')
-    plt.show()
-
     # load best model weights
     model.load_state_dict(best_model_weights)
     # saves to a file
     if filepath:
         torch.save(model, filepath)
         print(f"Model saved to {filepath}")
+
+    if plot_roc:
+        plot_roc_curve(y=epoch_y, y_pred=epoch_y_pred, labels=range(model.num_classes))
+    if plot_other_stats:
+        plot_stats(accuracies=accuracies, precisions=precisions, recalls=recalls, f1_scores=f1_scores)
+    if plot_loss:
+        plot_losses(train_losses=train_losses, test_losses=test_losses)
+
     return model
 
 
@@ -237,7 +246,9 @@ if __name__ == "__main__":
 
     parameters = read_json(filepath=parameters_path)
 
-    lfw_dataset_train, lfw_dataset_test = load_lfw_dataset(filepath=assets_path, min_faces_per_person=70)
+    lfw_dataset_train, lfw_dataset_test = load_lfw_dataset(filepath=assets_path,
+                                                           min_faces_per_person=parameters["data"][
+                                                               "min_faces_per_person"])
     labels = {label.item() for image, label in lfw_dataset_train}
 
     lfw_dataloader_train, lfw_dataloader_test = DataLoader(dataset=lfw_dataset_train, shuffle=True,
@@ -256,6 +267,7 @@ if __name__ == "__main__":
     ])
 
     classifier = Classifier(num_classes=len(labels), pretrained=True)
-    train(classifier, epochs=50,  # parameters["training"]["epochs"],
+    train(classifier, epochs=parameters["training"]["epochs"],
           data_augmentation_transforms=data_augmentation_transforms, resize=True, add_noise=False,
-          data_train=lfw_dataloader_train, data_val=lfw_dataloader_test)
+          data_train=lfw_dataloader_train, data_val=lfw_dataloader_test,
+          plot_loss=True, plot_roc=True, plot_other_stats=True)

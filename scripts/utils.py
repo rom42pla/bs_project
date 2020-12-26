@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import fetch_lfw_people
-from sklearn.metrics import f1_score, accuracy_score, confusion_matrix
+from sklearn.metrics import f1_score, accuracy_score, confusion_matrix, roc_auc_score
 
 import torch
 from torch import nn
@@ -98,7 +98,7 @@ def psnr(img1, img2):
 
 
 def plot_roc_curve(y, y_pred, labels):
-    fpr, tpr = [], []
+    fpr, tpr, auc = [], [], []
     for i_class in labels:
         epoch_y_binary, epoch_y_pred_binary = [1 if label == i_class else 0 for label in y], \
                                               [1 if label == i_class else 0 for label in y_pred]
@@ -108,12 +108,38 @@ def plot_roc_curve(y, y_pred, labels):
                                               labels=[0, 1]).ravel()
             class_fpr[i], class_tpr[i] = (fp + 1) / (fp + tn + 1), \
                                          (tp + 1) / (tp + fn + 1)
-
         fpr += [class_fpr]
         tpr += [class_tpr]
+        auc += [roc_auc_score(y_true=epoch_y_binary, y_score=epoch_y_pred_binary)]
 
-    for class_fpr, class_tpr in zip(fpr, tpr):
-        plt.plot(class_fpr, class_tpr)
-    plt.legend(labels)
-    plt.plot()
+    # fig, axs = plt.subplots(len(labels))
+    # for i_label, label in enumerate(labels):
+    #     axs[i_label].plot(fpr[i_label], tpr[i_label])
+    #     axs[i_label].set_title(auc[i_label])
+
+    for i_label, label in enumerate(labels):
+        plt.plot(fpr[i_label], tpr[i_label])
+    if len(labels) <= 10:
+        plt.legend([f"Label {label}, AUC {auc}" for label, auc in zip(labels, auc)])
+    plt.tight_layout()
+    plt.show()
+
+def plot_losses(train_losses, test_losses):
+    sns.lineplot(y=train_losses, x=range(1, len(train_losses)+1))
+    sns.lineplot(y=test_losses, x=range(1, len(test_losses)+1))
+    plt.title('Model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper right')
+    plt.show()
+
+def plot_stats(accuracies, precisions, recalls, f1_scores):
+    sns.lineplot(y=accuracies, x=range(1, len(accuracies)+1))
+    sns.lineplot(y=precisions, x=range(1, len(accuracies)+1))
+    sns.lineplot(y=recalls, x=range(1, len(accuracies)+1))
+    sns.lineplot(y=f1_scores, x=range(1, len(accuracies)+1))
+    plt.title('Stats')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['accuracy', 'precision', 'recall', 'F1 scores'], loc='upper right')
     plt.show()

@@ -1,6 +1,9 @@
 {
+  "data": {
+    "min_faces_per_person": 20
+  },
   "training": {
-    "epochs": 100,
+    "epochs": 200,
     "batch_size": 100
   }
 }
