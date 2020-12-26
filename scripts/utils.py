@@ -6,10 +6,13 @@ import tarfile
 import json
 
 import numpy as np
+
+import seaborn as sns
 import matplotlib.pyplot as plt
 
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import fetch_lfw_people
+from sklearn.metrics import f1_score, accuracy_score, confusion_matrix
 
 import torch
 from torch import nn
@@ -50,7 +53,7 @@ def load_lfw_dataset(filepath: str, min_faces_per_person: int = 20):
     # downloads or fetches the dataset
     lfw_dataset = fetch_lfw_people(min_faces_per_person=min_faces_per_person, resize=1, color=True,
                                    funneled=True, data_home=filepath)
-    X, y = np.transpose(lfw_dataset.images, (0, 3, 1, 2))/255, lfw_dataset.target
+    X, y = np.transpose(lfw_dataset.images, (0, 3, 1, 2)) / 255, lfw_dataset.target
 
     # split into a training and testing set
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y,
@@ -92,3 +95,25 @@ def psnr(img1, img2):
     if mse == 0:
         return np.inf
     return 20 * torch.log10(1 / torch.sqrt(mse))
+
+
+def plot_roc_curve(y, y_pred, labels):
+    fpr, tpr = [], []
+    for i_class in labels:
+        epoch_y_binary, epoch_y_pred_binary = [1 if label == i_class else 0 for label in y], \
+                                              [1 if label == i_class else 0 for label in y_pred]
+        class_fpr, class_tpr = np.zeros(len(epoch_y_binary)), np.zeros(len(epoch_y_binary))
+        for i in range(len(epoch_y_binary)):
+            tn, fp, fn, tp = confusion_matrix(epoch_y_binary[:i + 1], epoch_y_pred_binary[:i + 1],
+                                              labels=[0, 1]).ravel()
+            class_fpr[i], class_tpr[i] = (fp + 1) / (fp + tn + 1), \
+                                         (tp + 1) / (tp + fn + 1)
+
+        fpr += [class_fpr]
+        tpr += [class_tpr]
+
+    for class_fpr, class_tpr in zip(fpr, tpr):
+        plt.plot(class_fpr, class_tpr)
+    plt.legend(labels)
+    plt.plot()
+    plt.show()

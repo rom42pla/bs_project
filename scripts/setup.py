@@ -4,7 +4,8 @@ import copy
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import f1_score, accuracy_score
+from sklearn.metrics import f1_score, accuracy_score, confusion_matrix
+import matplotlib.pyplot as plt
 
 import torch
 from torch import nn, optim
@@ -13,7 +14,7 @@ from torchvision import models, transforms, datasets
 from torch.utils.data import DataLoader
 
 from utils import load_lfw_dataset, split_dataset, show_img, read_json
-from utils import psnr
+from utils import plot_roc_curve, psnr
 
 
 # base class for each custom module
@@ -47,6 +48,8 @@ class Classifier(CustomModule):
         super(Classifier, self).__init__(device=device)
 
         assert isinstance(pretrained, bool)
+        assert isinstance(num_classes, int) and num_classes >= 2
+        self.num_classes = num_classes
 
         # takes the feature extractor layers of the model
         resnet = models.resnet18(pretrained=pretrained)
@@ -88,9 +91,8 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
     since = time.time()
     best_epoch_loss, best_model_weights = np.inf, \
                                           copy.deepcopy(model.state_dict())
-    losses, false_acceptances, false_negatives = np.zeros(shape=epochs), \
-                                                 np.zeros(shape=epochs), \
-                                                 np.zeros(shape=epochs)
+    losses, false_positives, false_negatives = np.zeros(shape=epochs), \
+                                               [], []
     optimizer = optim.Adam(params=model.parameters(), lr=lr)
 
     for epoch in range(epochs):
@@ -111,9 +113,10 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
 
             batches_to_do = min(batches_per_epoch if batches_per_epoch else len(data), len(data))
 
-            epoch_losses, epoch_f1, epoch_accuracy = np.zeros(shape=batches_to_do), \
-                                                     np.zeros(shape=batches_to_do), \
-                                                     np.zeros(shape=batches_to_do)
+            epoch_losses = np.zeros(shape=batches_to_do)
+            epoch_y, epoch_y_pred = [], []
+            epoch_f1, epoch_accuracy = np.zeros(shape=batches_to_do), \
+                                       np.zeros(shape=batches_to_do)
             epoch_ce_losses, epoch_psnrs = np.zeros(shape=batches_to_do), \
                                            np.zeros(shape=batches_to_do)
 
@@ -157,6 +160,9 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                     optimizer.step()
 
                 y_pred_labels = torch.argmax(y_pred.detach().cpu(), dim=-1)
+
+                epoch_y += y.detach().cpu().tolist()
+                epoch_y_pred += y_pred_labels.detach().cpu().tolist()
 
                 epoch_losses[i_batch], epoch_f1[i_batch], epoch_accuracy[i_batch] = ce_loss, \
                                                                                     f1_score(
@@ -205,7 +211,7 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
     time_elapsed = time.time() - since
     print('Training completed in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
 
-    import matplotlib.pyplot as plt
+    plot_roc_curve(epoch_y, epoch_y_pred, labels=range(model.num_classes))
 
     plt.plot(losses)
     # plt.plot(multi_history.history['val_loss'])
@@ -250,6 +256,6 @@ if __name__ == "__main__":
     ])
 
     classifier = Classifier(num_classes=len(labels), pretrained=True)
-    train(classifier, epochs=3,  # parameters["training"]["epochs"],
-          data_augmentation_transforms=data_augmentation_transforms, resize=True,
+    train(classifier, epochs=50,  # parameters["training"]["epochs"],
+          data_augmentation_transforms=data_augmentation_transforms, resize=True, add_noise=False,
           data_train=lfw_dataloader_train, data_val=lfw_dataloader_test)
