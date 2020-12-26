@@ -141,5 +141,5 @@ def plot_stats(accuracies, precisions, recalls, f1_scores):
     plt.title('Stats')
     plt.ylabel('loss')
     plt.xlabel('epoch')
-    plt.legend(['accuracy', 'precision', 'recall', 'F1 scores'], loc='upper right')
+    plt.legend(['accuracy', 'precision', 'recall', 'F1 scores'], loc='lower right')
     plt.show()

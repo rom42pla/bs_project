@@ -268,6 +268,6 @@ if __name__ == "__main__":
 
     classifier = Classifier(num_classes=len(labels), pretrained=True)
     train(classifier, epochs=parameters["training"]["epochs"],
-          data_augmentation_transforms=data_augmentation_transforms, resize=True, add_noise=False,
+          data_augmentation_transforms=data_augmentation_transforms, resize=True, add_noise=True,
           data_train=lfw_dataloader_train, data_val=lfw_dataloader_test,
           plot_loss=True, plot_roc=True, plot_other_stats=True)
