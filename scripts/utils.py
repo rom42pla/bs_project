@@ -139,7 +139,6 @@ def plot_stats(accuracies, precisions, recalls, f1_scores):
     sns.lineplot(y=recalls, x=range(1, len(accuracies)+1))
     sns.lineplot(y=f1_scores, x=range(1, len(accuracies)+1))
     plt.title('Stats')
-    plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['accuracy', 'precision', 'recall', 'F1 scores'], loc='lower right')
     plt.show()
