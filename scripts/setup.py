@@ -16,15 +16,6 @@ from utils import load_lfw_dataset, split_dataset, show_img, read_json
 from utils import psnr
 
 
-class AddGaussianNoise(nn.Module):
-    def __init__(self, mean=0., std=1.):
-        super(AddGaussianNoise, self).__init__()
-        self.std, self.mean = std, mean
-
-    def forward(self, X):
-        return X + torch.randn(X.size()) * self.std + self.mean
-
-
 # base class for each custom module
 class CustomModule(nn.Module):
     def __init__(self, device: str = "auto"):
@@ -33,6 +24,21 @@ class CustomModule(nn.Module):
         assert device in {"cpu", "cuda", "auto"}
         self.device = device if device in {"cpu", "cuda"} \
             else "cuda" if torch.cuda.is_available() else "cpu"
+
+
+class SaltAndPepperNoise(CustomModule):
+    def __init__(self, prob: float = 0.005,
+                 device: str = "auto"):
+        super(SaltAndPepperNoise, self).__init__(device=device)
+        assert isinstance(prob, float) and 0 <= prob <= 1
+        self.prob = prob
+
+        self.to(self.device)
+
+    def forward(self, X):
+        mask = torch.rand(size=X.shape).to(self.device) >= self.prob
+        return X * mask
+        # return X + torch.randn(X.size()).to(self.device) * self.std + self.mean
 
 
 class Classifier(CustomModule):
@@ -66,12 +72,13 @@ class Classifier(CustomModule):
 
 def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
           lr: float = 1e-5, epochs: int = 5, batches_per_epoch: int = None,
-          data_augmentation_transforms=None, resize: bool = False,
+          data_augmentation_transforms=None, resize: bool = False, add_noise: bool = True,
           filepath: str = None, verbose: bool = True):
     # checks about model's parameters
     assert isinstance(model, nn.Module)
     assert isinstance(data_train, DataLoader)
     assert isinstance(data_val, DataLoader)
+    assert isinstance(add_noise, bool)
     assert not filepath or isinstance(filepath, str)
     # checks on other parameters
     assert isinstance(verbose, bool)
@@ -81,11 +88,19 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
     since = time.time()
     best_epoch_loss, best_model_weights = np.inf, \
                                           copy.deepcopy(model.state_dict())
-
+    losses, false_acceptances, false_negatives = np.zeros(shape=epochs), \
+                                                 np.zeros(shape=epochs), \
+                                                 np.zeros(shape=epochs)
     optimizer = optim.Adam(params=model.parameters(), lr=lr)
 
     for epoch in range(epochs):
         for phase in ['train', 'val']:
+            '''
+            S T A R T
+            O F
+            E P O C H
+            '''
+
             data = data_train if phase == "train" else data_val
 
             if phase == 'train':
@@ -111,6 +126,9 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                 X, y = batch[0].to(model.device), \
                        batch[1].to(model.device)
 
+                if add_noise:
+                    X = SaltAndPepperNoise(device=model.device)(X)
+
                 # resizes the image
                 if resize:
                     square_edge = min(X.shape[2:])
@@ -121,7 +139,7 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                     X = X_resized
 
                 # applies some data augmentation
-                if phase == "train" and data_augmentation_transforms:
+                if data_augmentation_transforms:
                     for i_img, img in enumerate(X):
                         X[i_img] = data_augmentation_transforms(img)
 
@@ -166,15 +184,36 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                             "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
                         }))
 
+            '''
+            E N D
+            O F
+            E P O C H
+            '''
             # deep copy the model
             avg_epoch_loss = np.mean(epoch_losses)
             if phase == 'val' and avg_epoch_loss < best_epoch_loss:
                 print(f"Found best model with loss {avg_epoch_loss}")
                 best_epoch_loss, best_model_weights = avg_epoch_loss, \
                                                       copy.deepcopy(model.state_dict())
+            losses[epoch] = avg_epoch_loss
 
+    '''
+    E N D
+    O F
+    T R A I N I N G
+    '''
     time_elapsed = time.time() - since
     print('Training completed in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+
+    import matplotlib.pyplot as plt
+
+    plt.plot(losses)
+    # plt.plot(multi_history.history['val_loss'])
+    plt.title('model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    # plt.legend(['train', 'val'], loc='upper left')
+    plt.show()
 
     # load best model weights
     model.load_state_dict(best_model_weights)
@@ -192,7 +231,7 @@ if __name__ == "__main__":
 
     parameters = read_json(filepath=parameters_path)
 
-    lfw_dataset_train, lfw_dataset_test = load_lfw_dataset(filepath=assets_path)
+    lfw_dataset_train, lfw_dataset_test = load_lfw_dataset(filepath=assets_path, min_faces_per_person=70)
     labels = {label.item() for image, label in lfw_dataset_train}
 
     lfw_dataloader_train, lfw_dataloader_test = DataLoader(dataset=lfw_dataset_train, shuffle=True,
@@ -211,6 +250,6 @@ if __name__ == "__main__":
     ])
 
     classifier = Classifier(num_classes=len(labels), pretrained=True)
-    train(classifier, epochs=parameters["training"]["epochs"],
+    train(classifier, epochs=3,  # parameters["training"]["epochs"],
           data_augmentation_transforms=data_augmentation_transforms, resize=True,
           data_train=lfw_dataloader_train, data_val=lfw_dataloader_test)

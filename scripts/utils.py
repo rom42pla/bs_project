@@ -43,12 +43,12 @@ def split_dataset(dataset: Dataset, splits: list, shuffles: list = None,
     return dataloaders
 
 
-def load_lfw_dataset(filepath: str):
+def load_lfw_dataset(filepath: str, min_faces_per_person: int = 20):
     # eventually creates empty directories
     if not exists(filepath):
         makedirs(filepath)
     # downloads or fetches the dataset
-    lfw_dataset = fetch_lfw_people(min_faces_per_person=20, resize=1, color=True,
+    lfw_dataset = fetch_lfw_people(min_faces_per_person=min_faces_per_person, resize=1, color=True,
                                    funneled=True, data_home=filepath)
     X, y = np.transpose(lfw_dataset.images, (0, 3, 1, 2))/255, lfw_dataset.target
 
