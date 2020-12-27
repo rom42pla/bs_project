@@ -20,14 +20,13 @@ from utils import plot_roc_curve, plot_losses, plot_stats, psnr
 
 def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
           lr: float = 1e-5, epochs: int = 5, batches_per_epoch: int = None,
-          data_augmentation_transforms=None, resize: bool = False, add_noise: bool = True,
+          data_augmentation_transforms=None, resize: bool = False,
           filepath: str = None, verbose: bool = True,
           plot_roc: bool = False, plot_loss: bool = True, plot_other_stats: bool = True):
     # checks about model's parameters
     assert isinstance(model, nn.Module)
     assert isinstance(data_train, DataLoader)
     assert isinstance(data_val, DataLoader)
-    assert isinstance(add_noise, bool)
     assert not filepath or isinstance(filepath, str)
     # checks on other parameters
     assert isinstance(verbose, bool)
@@ -77,9 +76,6 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                 # gets input data
                 X, y = batch[0].to(model.device), \
                        batch[1].to(model.device)
-
-                if add_noise:
-                    X = SaltAndPepperNoise(device=model.device)(X)
 
                 # resizes the image
                 if resize:
@@ -198,7 +194,7 @@ if __name__ == "__main__":
     lfw_path = join(assets_path, "lfw")
 
     models_path = join(assets_path, "models")
-    face_recognition_model_weights_path = join(models_path, "face_recognition_model.pth")
+    face_recognition_model_weights_path = join(models_path, "face_recognition_model_weights.pth")
     rrdb_pretrained_weights_path = join(models_path, "RRDB_PSNR_x4.pth")
 
     lfw_dataset_train, lfw_dataset_test = load_lfw_dataset(filepath=assets_path,
@@ -221,14 +217,28 @@ if __name__ == "__main__":
         transforms.ToTensor()
     ])
 
+    # face_recognition_model = FaceRecognitionModel(num_classes=len(labels),
+    #                                               add_noise=parameters["training"]["add_noise"],
+    #                                               do_denoising=parameters["training"]["do_denoising"],
+    #                                               do_super_resolution=parameters["training"]["do_super_resolution"],
+    #                                               resnet_pretrained=True,
+    #                                               rrdb_pretrained_weights_path=rrdb_pretrained_weights_path)
+    #
+    # train(face_recognition_model, epochs=parameters["training"]["epochs"],
+    #       data_augmentation_transforms=data_augmentation_transforms, resize=True,
+    #       data_train=lfw_dataloader_train, data_val=lfw_dataloader_test,
+    #       plot_loss=True, plot_roc=True, plot_other_stats=True,
+    #       filepath=face_recognition_model_weights_path)
+
     face_recognition_model = FaceRecognitionModel(num_classes=len(labels),
-                                                  add_noise=True, do_denoising=True,
-                                                  do_super_resolution=False,
+                                                  add_noise=parameters["training"]["add_noise"],
+                                                  do_denoising=True,
+                                                  do_super_resolution=parameters["training"]["do_super_resolution"],
                                                   resnet_pretrained=True,
                                                   rrdb_pretrained_weights_path=rrdb_pretrained_weights_path)
 
     train(face_recognition_model, epochs=parameters["training"]["epochs"],
-          data_augmentation_transforms=data_augmentation_transforms, resize=True, add_noise=False,
+          data_augmentation_transforms=data_augmentation_transforms, resize=True,
           data_train=lfw_dataloader_train, data_val=lfw_dataloader_test,
           plot_loss=True, plot_roc=True, plot_other_stats=True,
           filepath=face_recognition_model_weights_path)

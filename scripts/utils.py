@@ -83,7 +83,7 @@ def show_img(*imgs: torch.Tensor, filename: str = None, save_to_folder: str = No
         if save_to_folder:
             filename = filename if filename else f"img_{i_img}"
             save_image(img, join(save_to_folder, f"{filename}.png"))
-        imgs[i_img] = img.permute(1, 2, 0).to("cpu").numpy()
+        imgs[i_img] = img.permute(1, 2, 0).detach().cpu().numpy()
     fig, axs = plt.subplots(1, len(imgs), squeeze=False)
     for i_ax, ax in enumerate(axs.flat):
         ax.imshow(imgs[i_ax])
@@ -111,11 +111,6 @@ def plot_roc_curve(y, y_pred, labels):
         fpr += [class_fpr]
         tpr += [class_tpr]
         auc += [roc_auc_score(y_true=epoch_y_binary, y_score=epoch_y_pred_binary)]
-
-    # fig, axs = plt.subplots(len(labels))
-    # for i_label, label in enumerate(labels):
-    #     axs[i_label].plot(fpr[i_label], tpr[i_label])
-    #     axs[i_label].set_title(auc[i_label])
 
     for i_label, label in enumerate(labels):
         plt.plot(fpr[i_label], tpr[i_label])

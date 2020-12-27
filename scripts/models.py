@@ -6,7 +6,7 @@ from torch import nn
 import torch.nn.functional as F
 from torchvision import models, transforms
 
-from utils import show_img
+from external_models import DnCNN, RRDBNet
 
 
 # base class for each custom module
@@ -86,7 +86,6 @@ class RRDB(CustomModule):
         # checks that the weights are correctly given
         assert isinstance(pretrained_weights_path, str)
 
-        from assets.models.RRDBNet_arch import RRDBNet
         rrdb = RRDBNet(3, 3, 64, 23, gc=32)
         if pretrained_weights_path:
             rrdb.load_state_dict(torch.load(pretrained_weights_path), strict=True)
@@ -112,16 +111,15 @@ class RRDB(CustomModule):
         out = self.layers(X)
         return out
 
+
 class Denoiser(CustomModule):
     def __init__(self, trainable: bool = False,
                  device: str = "auto"):
         super(Denoiser, self).__init__(device=device)
 
-        from assets.models.dncnn import DnCNN
         denoiser = DnCNN()
         for parameter in denoiser.parameters():
             parameter.requires_grad = trainable
-
 
         self.layers = nn.Sequential(
             denoiser
@@ -134,10 +132,11 @@ class Denoiser(CustomModule):
         out = self.layers(X)
         return out
 
+
 class FaceRecognitionModel(CustomModule):
     def __init__(self, num_classes: int, trainable: bool = True,
                  add_noise: bool = False, noise_prob: float = 0.01,
-                 do_denoising: bool = True,
+                 do_denoising: bool = False,
                  do_super_resolution: bool = False,
                  rrdb_pretrained_weights_path: str = None, resnet_pretrained: bool = True,
                  device: str = "auto"):
@@ -148,6 +147,7 @@ class FaceRecognitionModel(CustomModule):
 
         # checks that the weights are correctly given
         assert isinstance(resnet_pretrained, bool)
+        assert rrdb_pretrained_weights_path is None or isinstance(rrdb_pretrained_weights_path, str)
 
         # noise parameters
         assert isinstance(add_noise, bool)
@@ -176,12 +176,9 @@ class FaceRecognitionModel(CustomModule):
     def forward(self, X: torch.Tensor):
         if self.add_noise:
             X = self.noise_adding(X)
-            #show_img(X[0])
         if self.do_denoising:
             X = self.denoiser(X)
-            #show_img(X[0])
         if self.do_super_resolution:
             X = self.super_resolution_model(X)
-            #show_img(X[0])
         scores = self.classifier(X)
         return scores

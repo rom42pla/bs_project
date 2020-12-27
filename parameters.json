@@ -4,7 +4,10 @@
   },
   "training": {
     "seed": 1234,
-    "epochs": 1,
-    "batch_size": 10
+    "epochs": 10,
+    "batch_size": 15,
+    "add_noise": true,
+    "do_denoising": false,
+    "do_super_resolution": false
   }
 }
