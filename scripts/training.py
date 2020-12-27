@@ -171,7 +171,7 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
     model.load_state_dict(best_model_weights)
     # saves to a file
     if filepath:
-        torch.save(model, filepath)
+        torch.save(model.state_dict(), filepath)
         print(f"Model saved to {filepath}")
 
     if plot_roc:
@@ -198,6 +198,7 @@ if __name__ == "__main__":
     lfw_path = join(assets_path, "lfw")
 
     models_path = join(assets_path, "models")
+    face_recognition_model_weights_path = join(models_path, "face_recognition_model.pth")
     rrdb_pretrained_weights_path = join(models_path, "RRDB_PSNR_x4.pth")
 
     lfw_dataset_train, lfw_dataset_test = load_lfw_dataset(filepath=assets_path,
@@ -221,7 +222,7 @@ if __name__ == "__main__":
     ])
 
     face_recognition_model = FaceRecognitionModel(num_classes=len(labels),
-                                                  add_noise=True, do_denoising=False,
+                                                  add_noise=True, do_denoising=True,
                                                   do_super_resolution=False,
                                                   resnet_pretrained=True,
                                                   rrdb_pretrained_weights_path=rrdb_pretrained_weights_path)
@@ -229,4 +230,5 @@ if __name__ == "__main__":
     train(face_recognition_model, epochs=parameters["training"]["epochs"],
           data_augmentation_transforms=data_augmentation_transforms, resize=True, add_noise=False,
           data_train=lfw_dataloader_train, data_val=lfw_dataloader_test,
-          plot_loss=True, plot_roc=True, plot_other_stats=True)
+          plot_loss=True, plot_roc=True, plot_other_stats=True,
+          filepath=face_recognition_model_weights_path)

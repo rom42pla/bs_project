@@ -6,6 +6,8 @@ from torch import nn
 import torch.nn.functional as F
 from torchvision import models, transforms
 
+from utils import show_img
+
 
 # base class for each custom module
 class CustomModule(nn.Module):
@@ -133,8 +135,8 @@ class Denoiser(CustomModule):
         return out
 
 class FaceRecognitionModel(CustomModule):
-    def __init__(self, num_classes: int,
-                 add_noise: bool = False, noise_prob: float = 0.005,
+    def __init__(self, num_classes: int, trainable: bool = True,
+                 add_noise: bool = False, noise_prob: float = 0.01,
                  do_denoising: bool = True,
                  do_super_resolution: bool = False,
                  rrdb_pretrained_weights_path: str = None, resnet_pretrained: bool = True,
@@ -155,16 +157,18 @@ class FaceRecognitionModel(CustomModule):
         assert isinstance(do_denoising, bool)
         self.do_denoising = do_denoising
         if self.do_denoising:
-            self.denoiser = Denoiser()
+            self.denoiser = Denoiser(trainable=trainable)
 
         # super resolution parameters
         assert isinstance(do_super_resolution, bool)
         self.do_super_resolution = do_super_resolution
         if self.do_super_resolution:
             assert isinstance(rrdb_pretrained_weights_path, str)
-            self.super_resolution_model = RRDB(pretrained_weights_path=rrdb_pretrained_weights_path)
+            self.super_resolution_model = RRDB(pretrained_weights_path=rrdb_pretrained_weights_path,
+                                               trainable=trainable)
 
-        self.classifier = Classifier(pretrained=resnet_pretrained, num_classes=num_classes)
+        self.classifier = Classifier(num_classes=num_classes,
+                                     pretrained=resnet_pretrained)
 
         # moves the entire model to the chosen device
         self.to(self.device)
@@ -172,9 +176,12 @@ class FaceRecognitionModel(CustomModule):
     def forward(self, X: torch.Tensor):
         if self.add_noise:
             X = self.noise_adding(X)
+            #show_img(X[0])
         if self.do_denoising:
             X = self.denoiser(X)
+            #show_img(X[0])
         if self.do_super_resolution:
             X = self.super_resolution_model(X)
+            #show_img(X[0])
         scores = self.classifier(X)
         return scores
