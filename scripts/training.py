@@ -124,7 +124,7 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                 epoch_ce_losses[i_batch], epoch_psnrs[i_batch], = ce_loss, psnr(X, X)
 
                 # statistics
-                if verbose and i_batch in np.linspace(start=1, stop=batches_to_do, num=100, dtype=np.int):
+                if verbose and i_batch in np.linspace(start=1, stop=batches_to_do, num=10, dtype=np.int):
                     time_elapsed = time.time() - since
                     print(pd.DataFrame(
                         index=[
@@ -186,14 +186,19 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
 
 if __name__ == "__main__":
     parameters_path = join("..", "parameters.json")
+    parameters = read_json(filepath=parameters_path)
+
+    # setting the seeds for reproducibility
+    seed = parameters["training"]["seed"]
+    torch.manual_seed(seed=seed)
+    np.random.seed(seed=seed)
+
     assets_path = join("..", "assets")
 
     lfw_path = join(assets_path, "lfw")
 
     models_path = join(assets_path, "models")
     rrdb_pretrained_weights_path = join(models_path, "RRDB_PSNR_x4.pth")
-
-    parameters = read_json(filepath=parameters_path)
 
     lfw_dataset_train, lfw_dataset_test = load_lfw_dataset(filepath=assets_path,
                                                            min_faces_per_person=parameters["data"][
@@ -216,7 +221,7 @@ if __name__ == "__main__":
     ])
 
     face_recognition_model = FaceRecognitionModel(num_classes=len(labels),
-                                                  add_noise=False,
+                                                  add_noise=True, do_denoising=False,
                                                   do_super_resolution=False,
                                                   resnet_pretrained=True,
                                                   rrdb_pretrained_weights_path=rrdb_pretrained_weights_path)
@@ -225,4 +230,3 @@ if __name__ == "__main__":
           data_augmentation_transforms=data_augmentation_transforms, resize=True, add_noise=False,
           data_train=lfw_dataloader_train, data_val=lfw_dataloader_test,
           plot_loss=True, plot_roc=True, plot_other_stats=True)
-

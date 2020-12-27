@@ -1,8 +1,9 @@
 {
   "data": {
-    "min_faces_per_person": 100
+    "min_faces_per_person": 20
   },
   "training": {
+    "seed": 1234,
     "epochs": 10,
     "batch_size": 10
   }

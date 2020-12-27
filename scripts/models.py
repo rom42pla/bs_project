@@ -77,8 +77,9 @@ class Classifier(CustomModule):
 
 
 class RRDB(CustomModule):
-    def __init__(self, pretrained_weights_path: str, trainable: bool = False, device: str = "auto"):
-        super(RRDB, self).__init__()
+    def __init__(self, pretrained_weights_path: str, trainable: bool = False,
+                 device: str = "auto"):
+        super(RRDB, self).__init__(device=device)
 
         # checks that the weights are correctly given
         assert isinstance(pretrained_weights_path, str)
@@ -109,15 +110,39 @@ class RRDB(CustomModule):
         out = self.layers(X)
         return out
 
+class Denoiser(CustomModule):
+    def __init__(self, trainable: bool = False,
+                 device: str = "auto"):
+        super(Denoiser, self).__init__(device=device)
+
+        from assets.models.dncnn import DnCNN
+        denoiser = DnCNN()
+        for parameter in denoiser.parameters():
+            parameter.requires_grad = trainable
+
+
+        self.layers = nn.Sequential(
+            denoiser
+        )
+
+        # moves the entire model to the chosen device
+        self.to(self.device)
+
+    def forward(self, X: torch.Tensor):
+        out = self.layers(X)
+        return out
+
 class FaceRecognitionModel(CustomModule):
     def __init__(self, num_classes: int,
                  add_noise: bool = False, noise_prob: float = 0.005,
+                 do_denoising: bool = True,
                  do_super_resolution: bool = False,
                  rrdb_pretrained_weights_path: str = None, resnet_pretrained: bool = True,
                  device: str = "auto"):
         super(FaceRecognitionModel, self).__init__(device=device)
 
         assert isinstance(num_classes, int) and num_classes >= 2
+        self.num_classes = num_classes
 
         # checks that the weights are correctly given
         assert isinstance(resnet_pretrained, bool)
@@ -127,6 +152,10 @@ class FaceRecognitionModel(CustomModule):
         self.add_noise = add_noise
         if self.add_noise:
             self.noise_adding = SaltAndPepperNoise(noise_prob_per_pixel=noise_prob)
+        assert isinstance(do_denoising, bool)
+        self.do_denoising = do_denoising
+        if self.do_denoising:
+            self.denoiser = Denoiser()
 
         # super resolution parameters
         assert isinstance(do_super_resolution, bool)
@@ -143,6 +172,8 @@ class FaceRecognitionModel(CustomModule):
     def forward(self, X: torch.Tensor):
         if self.add_noise:
             X = self.noise_adding(X)
+        if self.do_denoising:
+            X = self.denoiser(X)
         if self.do_super_resolution:
             X = self.super_resolution_model(X)
         scores = self.classifier(X)
