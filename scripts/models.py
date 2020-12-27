@@ -153,6 +153,7 @@ class FaceRecognitionModel(CustomModule):
         assert isinstance(add_noise, bool)
         self.add_noise = add_noise
         if self.add_noise:
+            assert isinstance(float(noise_prob), float) and 0 <= noise_prob <= 1
             self.noise_adding = SaltAndPepperNoise(noise_prob_per_pixel=noise_prob)
         assert isinstance(do_denoising, bool)
         self.do_denoising = do_denoising

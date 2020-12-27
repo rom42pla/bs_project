@@ -217,22 +217,10 @@ if __name__ == "__main__":
         transforms.ToTensor()
     ])
 
-    # face_recognition_model = FaceRecognitionModel(num_classes=len(labels),
-    #                                               add_noise=parameters["training"]["add_noise"],
-    #                                               do_denoising=parameters["training"]["do_denoising"],
-    #                                               do_super_resolution=parameters["training"]["do_super_resolution"],
-    #                                               resnet_pretrained=True,
-    #                                               rrdb_pretrained_weights_path=rrdb_pretrained_weights_path)
-    #
-    # train(face_recognition_model, epochs=parameters["training"]["epochs"],
-    #       data_augmentation_transforms=data_augmentation_transforms, resize=True,
-    #       data_train=lfw_dataloader_train, data_val=lfw_dataloader_test,
-    #       plot_loss=True, plot_roc=True, plot_other_stats=True,
-    #       filepath=face_recognition_model_weights_path)
-
     face_recognition_model = FaceRecognitionModel(num_classes=len(labels),
                                                   add_noise=parameters["training"]["add_noise"],
-                                                  do_denoising=True,
+                                                  noise_prob=parameters["training"]["noise_prob"],
+                                                  do_denoising=parameters["training"]["do_denoising"],
                                                   do_super_resolution=parameters["training"]["do_super_resolution"],
                                                   resnet_pretrained=True,
                                                   rrdb_pretrained_weights_path=rrdb_pretrained_weights_path)

@@ -6,6 +6,12 @@ import torch.nn as nn
 import torch.nn.init as init
 import torch.nn.functional as F
 
+'''
+S U P E R
+R E S O L U T I O N
+'''
+
+
 def make_layer(block, n_layers):
     layers = []
     for _ in range(n_layers):
@@ -68,7 +74,6 @@ class RRDBNet(nn.Module):
 
         self.lrelu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
 
-
     def forward(self, x):
         fea = self.conv_first(x)
         trunk = self.trunk_conv(self.RRDB_trunk(fea))
@@ -80,9 +85,12 @@ class RRDBNet(nn.Module):
 
         return out
 
+
 '''
 D E N O I S E R
 '''
+
+
 class DnCNN(nn.Module):
     def __init__(self, depth=20, n_channels=64, image_channels=3, bias=False, kernel_size=3):
         super(DnCNN, self).__init__()
