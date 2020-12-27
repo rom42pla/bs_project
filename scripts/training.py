@@ -13,64 +13,9 @@ import torch.nn.functional as F
 from torchvision import models, transforms, datasets
 from torch.utils.data import DataLoader
 
+from models import SaltAndPepperNoise, Classifier, RRDB, FaceRecognitionModel
 from utils import load_lfw_dataset, split_dataset, show_img, read_json
 from utils import plot_roc_curve, plot_losses, plot_stats, psnr
-
-
-# base class for each custom module
-class CustomModule(nn.Module):
-    def __init__(self, device: str = "auto"):
-        super(CustomModule, self).__init__()
-        # checks that the device is correctly given
-        assert device in {"cpu", "cuda", "auto"}
-        self.device = device if device in {"cpu", "cuda"} \
-            else "cuda" if torch.cuda.is_available() else "cpu"
-
-
-class SaltAndPepperNoise(CustomModule):
-    def __init__(self, prob: float = 0.005,
-                 device: str = "auto"):
-        super(SaltAndPepperNoise, self).__init__(device=device)
-        assert isinstance(prob, float) and 0 <= prob <= 1
-        self.prob = prob
-
-        self.to(self.device)
-
-    def forward(self, X):
-        mask = torch.rand(size=X.shape).to(self.device) >= self.prob
-        return X * mask
-        # return X + torch.randn(X.size()).to(self.device) * self.std + self.mean
-
-
-class Classifier(CustomModule):
-    def __init__(self, num_classes: int = 13233, pretrained: bool = True,
-                 device: str = "auto"):
-        super(Classifier, self).__init__(device=device)
-
-        assert isinstance(pretrained, bool)
-        assert isinstance(num_classes, int) and num_classes >= 2
-        self.num_classes = num_classes
-
-        # takes the feature extractor layers of the model
-        resnet = models.resnet18(pretrained=pretrained)
-        # changes the last classification layer to tune the model for another task
-        resnet.fc = nn.Linear(resnet.fc.in_features, num_classes)
-
-        self.layers = nn.Sequential(
-            resnet
-        )
-
-        # moves the entire model to the chosen device
-        self.to(self.device)
-
-    def forward(self, X: torch.Tensor):
-        X = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225])(X)
-        out = self.layers(X)
-
-        if not self.training:
-            out = F.log_softmax(out, dim=-1)
-        return out
 
 
 def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
@@ -179,7 +124,7 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                 epoch_ce_losses[i_batch], epoch_psnrs[i_batch], = ce_loss, psnr(X, X)
 
                 # statistics
-                if verbose and i_batch in np.linspace(start=1, stop=batches_to_do, num=5, dtype=np.int):
+                if verbose and i_batch in np.linspace(start=1, stop=batches_to_do, num=100, dtype=np.int):
                     time_elapsed = time.time() - since
                     print(pd.DataFrame(
                         index=[
@@ -242,7 +187,11 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
 if __name__ == "__main__":
     parameters_path = join("..", "parameters.json")
     assets_path = join("..", "assets")
+
     lfw_path = join(assets_path, "lfw")
+
+    models_path = join(assets_path, "models")
+    rrdb_pretrained_weights_path = join(models_path, "RRDB_PSNR_x4.pth")
 
     parameters = read_json(filepath=parameters_path)
 
@@ -266,8 +215,14 @@ if __name__ == "__main__":
         transforms.ToTensor()
     ])
 
-    classifier = Classifier(num_classes=len(labels), pretrained=True)
-    train(classifier, epochs=parameters["training"]["epochs"],
-          data_augmentation_transforms=data_augmentation_transforms, resize=True, add_noise=True,
+    face_recognition_model = FaceRecognitionModel(num_classes=len(labels),
+                                                  add_noise=False,
+                                                  do_super_resolution=False,
+                                                  resnet_pretrained=True,
+                                                  rrdb_pretrained_weights_path=rrdb_pretrained_weights_path)
+
+    train(face_recognition_model, epochs=parameters["training"]["epochs"],
+          data_augmentation_transforms=data_augmentation_transforms, resize=True, add_noise=False,
           data_train=lfw_dataloader_train, data_val=lfw_dataloader_test,
           plot_loss=True, plot_roc=True, plot_other_stats=True)
+
