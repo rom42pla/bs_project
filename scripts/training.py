@@ -4,17 +4,15 @@ import copy
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score, roc_auc_score
-import matplotlib.pyplot as plt
+from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
 
 import torch
 from torch import nn, optim
-import torch.nn.functional as F
-from torchvision import models, transforms, datasets
+from torchvision import transforms
 from torch.utils.data import DataLoader
 
-from models import SaltAndPepperNoise, Classifier, RRDB, FaceRecognitionModel
-from utils import load_lfw_dataset, split_dataset, show_img, read_json
+from models import FaceRecognitionModel
+from utils import load_lfw_dataset, read_json
 from utils import plot_roc_curve, plot_losses, plot_stats, psnr
 
 
@@ -120,7 +118,7 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                 epoch_ce_losses[i_batch], epoch_psnrs[i_batch], = ce_loss, psnr(X, X)
 
                 # statistics
-                if verbose and i_batch in np.linspace(start=1, stop=batches_to_do, num=3, dtype=np.int):
+                if verbose and i_batch in np.linspace(start=1, stop=batches_to_do, num=1, dtype=np.int):
                     time_elapsed = time.time() - since
                     print(pd.DataFrame(
                         index=[
@@ -219,14 +217,16 @@ if __name__ == "__main__":
     ])
 
     models = [
-        FaceRecognitionModel(num_classes=len(labels),
+        FaceRecognitionModel(name="plain",
+                             num_classes=len(labels),
                              add_noise=False,
                              do_denoising=False,
                              do_super_resolution=False,
                              noise_prob=parameters["training"]["noise_prob"],
                              resnet_pretrained=True,
                              rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
-        FaceRecognitionModel(num_classes=len(labels),
+        FaceRecognitionModel(name="noise",
+                             num_classes=len(labels),
                              add_noise=True,
                              do_denoising=False,
                              do_super_resolution=False,
