@@ -1,3 +1,4 @@
+import time
 from typing import Union
 
 import torch
@@ -11,8 +12,14 @@ from external_models import DnCNN, RRDBNet
 
 # base class for each custom module
 class CustomModule(nn.Module):
-    def __init__(self, device: str = "auto"):
+    def __init__(self, name: str = None,
+                 device: str = "auto"):
         super(CustomModule, self).__init__()
+        # checks that the name of the model is correctly given
+        assert not name or isinstance(name, str)
+        if not name:
+            name = str(round(time.time()))
+        self.name = name
         # checks that the device is correctly given
         assert device in {"cpu", "cuda", "auto"}
         self.device = device if device in {"cpu", "cuda"} \
@@ -139,8 +146,8 @@ class FaceRecognitionModel(CustomModule):
                  do_denoising: bool = False,
                  do_super_resolution: bool = False,
                  rrdb_pretrained_weights_path: str = None, resnet_pretrained: bool = True,
-                 device: str = "auto"):
-        super(FaceRecognitionModel, self).__init__(device=device)
+                 name: str = None, device: str = "auto"):
+        super(FaceRecognitionModel, self).__init__(name=name, device=device)
 
         assert isinstance(num_classes, int) and num_classes >= 2
         self.num_classes = num_classes

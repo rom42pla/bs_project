@@ -120,7 +120,7 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                 epoch_ce_losses[i_batch], epoch_psnrs[i_batch], = ce_loss, psnr(X, X)
 
                 # statistics
-                if verbose and i_batch in np.linspace(start=1, stop=batches_to_do, num=10, dtype=np.int):
+                if verbose and i_batch in np.linspace(start=1, stop=batches_to_do, num=3, dtype=np.int):
                     time_elapsed = time.time() - since
                     print(pd.DataFrame(
                         index=[
@@ -217,16 +217,26 @@ if __name__ == "__main__":
         transforms.ToTensor()
     ])
 
-    face_recognition_model = FaceRecognitionModel(num_classes=len(labels),
-                                                  add_noise=parameters["training"]["add_noise"],
-                                                  noise_prob=parameters["training"]["noise_prob"],
-                                                  do_denoising=parameters["training"]["do_denoising"],
-                                                  do_super_resolution=parameters["training"]["do_super_resolution"],
-                                                  resnet_pretrained=True,
-                                                  rrdb_pretrained_weights_path=rrdb_pretrained_weights_path)
+    models = [
+        FaceRecognitionModel(num_classes=len(labels),
+                             add_noise=False,
+                             do_denoising=False,
+                             do_super_resolution=False,
+                             noise_prob=parameters["training"]["noise_prob"],
+                             resnet_pretrained=True,
+                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+        FaceRecognitionModel(num_classes=len(labels),
+                             add_noise=True,
+                             do_denoising=False,
+                             do_super_resolution=False,
+                             noise_prob=parameters["training"]["noise_prob"],
+                             resnet_pretrained=True,
+                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+    ]
 
-    train(face_recognition_model, epochs=parameters["training"]["epochs"],
-          data_augmentation_transforms=data_augmentation_transforms, resize=True,
-          data_train=lfw_dataloader_train, data_val=lfw_dataloader_test,
-          plot_loss=True, plot_roc=True, plot_other_stats=True,
-          filepath=face_recognition_model_weights_path)
+    for model in models:
+        train(model, epochs=parameters["training"]["epochs"],
+              data_augmentation_transforms=data_augmentation_transforms, resize=True,
+              data_train=lfw_dataloader_train, data_val=lfw_dataloader_test,
+              plot_loss=True, plot_roc=True, plot_other_stats=True,
+              filepath=join(models_path, f"frm_{model.name}.pth"))
