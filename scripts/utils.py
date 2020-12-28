@@ -129,6 +129,31 @@ def plot_losses(train_losses, test_losses, title: str = None):
     plt.legend(['train', 'test'], loc='upper right')
     plt.show()
 
+def plot_cmc(y, y_pred_scores, title: str = None):
+    distance_matrix = np.asarray(y_pred_scores, dtype=np.float)
+    cms = np.zeros(shape=distance_matrix.shape[0])
+    for label, image_scores in zip(y, distance_matrix):
+        ordered_indexes = np.flip(np.argsort(image_scores))
+        rank = np.where(ordered_indexes == label)[0]
+        cms[rank] += 1
+
+    cms[0] = cms[0] / distance_matrix.shape[0]
+    recognition_rate = cms[0]
+    for k in range(1, distance_matrix.shape[0]):
+        cms[k] = cms[k] / distance_matrix.shape[0] + cms[k - 1]
+
+    cms_to_plot = 0
+    for i in range(len(cms)):
+        if np.allclose(cms[i:], cms[i]):
+            cms_to_plot = i
+            break
+
+    sns.lineplot(y=cms[:cms_to_plot+2], x=range(1, len(cms[:cms_to_plot+2]) + 1))
+    plt.title(f'CMC {"" if not title else title}')
+    plt.ylabel('identification rate')
+    plt.xlabel('rank')
+    plt.show()
+
 def plot_stats(accuracies, precisions, recalls, f1_scores, title: str = None):
     sns.lineplot(y=accuracies, x=range(1, len(accuracies)+1))
     sns.lineplot(y=precisions, x=range(1, len(accuracies)+1))

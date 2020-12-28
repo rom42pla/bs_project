@@ -12,13 +12,13 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 
 from models import FaceRecognitionModel
+import utils
 from utils import load_lfw_dataset, read_json
-from utils import plot_roc_curve, plot_losses, plot_stats, psnr
 
 
 def test(model: nn.Module, data: DataLoader,
          verbose: bool = True, resize: bool = False,
-         plot_roc: bool = False, plot_loss: bool = True, plot_other_stats: bool = True):
+         plot_roc: bool = False, plot_loss: bool = True, plot_cmc: bool = True):
     # checks about model's parameters
     assert isinstance(model, nn.Module)
     assert isinstance(data, DataLoader)
@@ -26,7 +26,7 @@ def test(model: nn.Module, data: DataLoader,
     assert isinstance(verbose, bool)
     assert isinstance(plot_loss, bool)
     assert isinstance(plot_roc, bool)
-    assert isinstance(plot_other_stats, bool)
+    assert isinstance(plot_cmc, bool)
 
     since = time.time()
     total_y, total_y_pred, total_y_pred_scores = [], [], []
@@ -73,7 +73,8 @@ def test(model: nn.Module, data: DataLoader,
             "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
         }))
 
-    distance_matrix = torch.as_tensor(total_y_pred_scores, dtype=torch.float)
+    if plot_cmc:
+        utils.plot_cmc(y=total_y, y_pred_scores=total_y_pred_scores, title=model.name)
 
     # if plot_roc:
     #     plot_roc_curve(y=total_y, y_pred=total_y_pred, labels=range(model.num_classes), title=model.name)
@@ -171,4 +172,4 @@ if __name__ == "__main__":
             continue
 
         test(model, data=lfw_dataloader_test, resize=True,
-             plot_loss=True, plot_roc=True, plot_other_stats=True)
+             plot_loss=True, plot_roc=True, plot_cmc=True)
