@@ -126,6 +126,7 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                         index=[
                             f"batch {i_batch + 1} of {batches_to_do}"],
                         data={
+                            "model name": model.name,
                             "epoch": epoch,
                             "phase": phase,
                             "avg loss": np.mean(epoch_losses[:i_batch]),
