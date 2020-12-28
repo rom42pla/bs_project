@@ -1,11 +1,11 @@
 {
   "data": {
-    "min_faces_per_person": 20
+    "min_faces_per_person": 100
   },
   "training": {
     "seed": 1234,
     "epochs": 1,
-    "batch_size": 15,
+    "batch_size": 8,
     "noise_prob": 0.025
   }
 }

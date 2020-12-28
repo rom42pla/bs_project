@@ -97,7 +97,7 @@ def psnr(img1, img2):
     return 20 * torch.log10(1 / torch.sqrt(mse))
 
 
-def plot_roc_curve(y, y_pred, labels):
+def plot_roc_curve(y, y_pred, labels, title: str = None):
     fpr, tpr, auc = [], [], []
     for i_class in labels:
         epoch_y_binary, epoch_y_pred_binary = [1 if label == i_class else 0 for label in y], \
@@ -116,24 +116,25 @@ def plot_roc_curve(y, y_pred, labels):
         plt.plot(fpr[i_label], tpr[i_label])
     if len(labels) <= 10:
         plt.legend([f"Label {label}, AUC {auc}" for label, auc in zip(labels, auc)])
+    plt.title(f'ROC curve {"" if not title else title}')
     plt.tight_layout()
     plt.show()
 
-def plot_losses(train_losses, test_losses):
+def plot_losses(train_losses, test_losses, title: str = None):
     sns.lineplot(y=train_losses, x=range(1, len(train_losses)+1))
     sns.lineplot(y=test_losses, x=range(1, len(test_losses)+1))
-    plt.title('Model loss')
+    plt.title(f'Model loss {"" if not title else title}')
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper right')
     plt.show()
 
-def plot_stats(accuracies, precisions, recalls, f1_scores):
+def plot_stats(accuracies, precisions, recalls, f1_scores, title: str = None):
     sns.lineplot(y=accuracies, x=range(1, len(accuracies)+1))
     sns.lineplot(y=precisions, x=range(1, len(accuracies)+1))
     sns.lineplot(y=recalls, x=range(1, len(accuracies)+1))
     sns.lineplot(y=f1_scores, x=range(1, len(accuracies)+1))
-    plt.title('Stats')
+    plt.title(f'Stats {"" if not title else title}')
     plt.xlabel('epoch')
     plt.legend(['accuracy', 'precision', 'recall', 'F1 scores'], loc='lower right')
     plt.show()

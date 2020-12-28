@@ -143,7 +143,7 @@ class Denoiser(CustomModule):
 class FaceRecognitionModel(CustomModule):
     def __init__(self, num_classes: int, trainable: bool = True,
                  add_noise: bool = False, noise_prob: float = 0.01,
-                 do_denoising: bool = False,
+                 do_denoising: bool = False, denoise_before_sr: bool = True,
                  do_super_resolution: bool = False,
                  rrdb_pretrained_weights_path: str = None, resnet_pretrained: bool = True,
                  name: str = None, device: str = "auto"):
@@ -166,6 +166,8 @@ class FaceRecognitionModel(CustomModule):
         self.do_denoising = do_denoising
         if self.do_denoising:
             self.denoiser = Denoiser(trainable=trainable)
+        assert isinstance(denoise_before_sr, bool)
+        self.denoise_before_sr = denoise_before_sr
 
         # super resolution parameters
         assert isinstance(do_super_resolution, bool)
@@ -184,9 +186,11 @@ class FaceRecognitionModel(CustomModule):
     def forward(self, X: torch.Tensor):
         if self.add_noise:
             X = self.noise_adding(X)
-        if self.do_denoising:
+        if self.denoise_before_sr and self.do_denoising:
             X = self.denoiser(X)
         if self.do_super_resolution:
             X = self.super_resolution_model(X)
+        if not self.denoise_before_sr and self.do_denoising:
+            X = self.denoiser(X)
         scores = self.classifier(X)
         return scores

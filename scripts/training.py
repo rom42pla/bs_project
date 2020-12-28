@@ -170,11 +170,11 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
         print(f"Model saved to {filepath}")
 
     if plot_roc:
-        plot_roc_curve(y=epoch_y, y_pred=epoch_y_pred, labels=range(model.num_classes))
+        plot_roc_curve(y=epoch_y, y_pred=epoch_y_pred, labels=range(model.num_classes), title=model.name)
     if plot_other_stats:
-        plot_stats(accuracies=accuracies, precisions=precisions, recalls=recalls, f1_scores=f1_scores)
+        plot_stats(accuracies=accuracies, precisions=precisions, recalls=recalls, f1_scores=f1_scores, title=model.name)
     if plot_loss:
-        plot_losses(train_losses=train_losses, test_losses=test_losses)
+        plot_losses(train_losses=train_losses, test_losses=test_losses, title=model.name)
 
     return model
 
@@ -225,11 +225,51 @@ if __name__ == "__main__":
                              noise_prob=parameters["training"]["noise_prob"],
                              resnet_pretrained=True,
                              rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
-        FaceRecognitionModel(name="noise",
+        FaceRecognitionModel(name="n",
                              num_classes=len(labels),
                              add_noise=True,
                              do_denoising=False,
                              do_super_resolution=False,
+                             noise_prob=parameters["training"]["noise_prob"],
+                             resnet_pretrained=True,
+                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+        FaceRecognitionModel(name="n_dn",
+                             num_classes=len(labels),
+                             add_noise=True,
+                             do_denoising=True,
+                             do_super_resolution=False,
+                             noise_prob=parameters["training"]["noise_prob"],
+                             resnet_pretrained=True,
+                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+        FaceRecognitionModel(name="SR",
+                             num_classes=len(labels),
+                             add_noise=False,
+                             do_denoising=False,
+                             do_super_resolution=True,
+                             noise_prob=parameters["training"]["noise_prob"],
+                             resnet_pretrained=True,
+                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+        FaceRecognitionModel(name="n_SR",
+                             num_classes=len(labels),
+                             add_noise=True,
+                             do_denoising=False,
+                             do_super_resolution=True,
+                             noise_prob=parameters["training"]["noise_prob"],
+                             resnet_pretrained=True,
+                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+        FaceRecognitionModel(name="n_dn_SR",
+                             num_classes=len(labels),
+                             add_noise=True,
+                             do_denoising=True, denoise_before_sr=True,
+                             do_super_resolution=True,
+                             noise_prob=parameters["training"]["noise_prob"],
+                             resnet_pretrained=True,
+                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+        FaceRecognitionModel(name="n_SR_dn",
+                             num_classes=len(labels),
+                             add_noise=True,
+                             do_denoising=True, denoise_before_sr=False,
+                             do_super_resolution=True,
                              noise_prob=parameters["training"]["noise_prob"],
                              resnet_pretrained=True,
                              rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
