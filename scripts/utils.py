@@ -13,7 +13,7 @@ from PIL import Image
 
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import fetch_lfw_people
-from sklearn.metrics import f1_score, accuracy_score, confusion_matrix, roc_auc_score
+from sklearn.metrics import f1_score, accuracy_score, confusion_matrix, roc_auc_score, roc_curve
 
 import torch
 from torch import nn
@@ -117,13 +117,7 @@ def psnr(img1, img2):
 
 
 def plot_roc_curve(y, y_pred, labels, title: str = None):
-    fpr, tpr, auc = [], [], None
-    for i in range(len(y)):
-        tn, fp, fn, tp = confusion_matrix(y[:i + 1], y_pred[:i + 1],
-                                          labels=[0, 1]).ravel()
-        fpr += [(fp + 1) / (fp + tn + 1)]
-        tpr += [(tp + 1) / (tp + fn + 1)]
-
+    fpr, tpr, _ = roc_curve(y_true=y, y_score=y_pred, drop_intermediate=False)
     auc = roc_auc_score(y_true=y, y_score=y_pred)
     plt.plot(fpr, tpr)
     # plt.legend([f"Label {label}, AUC {auc}" for label, auc in zip(labels, auc)])
