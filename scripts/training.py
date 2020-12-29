@@ -10,10 +10,11 @@ import torch
 from torch import nn, optim
 from torchvision import transforms
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 
 from models import FaceRecognitionModel
 from utils import load_lfw_dataset, read_json
-from utils import plot_roc_curve, plot_losses, plot_stats, psnr
+from utils import plot_roc_curve, plot_losses, plot_stats, psnr, show_img
 
 
 def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,

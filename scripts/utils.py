@@ -1,4 +1,4 @@
-from os import makedirs, remove
+from os import makedirs, remove, listdir
 from os.path import join, exists, isfile
 import urllib.request
 from hashlib import md5
@@ -9,6 +9,7 @@ import numpy as np
 
 import seaborn as sns
 import matplotlib.pyplot as plt
+from PIL import Image
 
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import fetch_lfw_people
@@ -17,6 +18,7 @@ from sklearn.metrics import f1_score, accuracy_score, confusion_matrix, roc_auc_
 import torch
 from torch import nn
 from torch.utils.data import Dataset, Subset, DataLoader, random_split
+from torchvision import transforms
 from torchvision.datasets import ImageFolder
 from torchvision.utils import save_image
 
@@ -62,6 +64,21 @@ def load_lfw_dataset(filepath: str, min_faces_per_person: int = 20):
     lfw_train_dataset, lfw_test_dataset = list(zip(torch.from_numpy(X_train), torch.from_numpy(y_train))), \
                                           list(zip(torch.from_numpy(X_test), torch.from_numpy(y_test)))
     return lfw_train_dataset, lfw_test_dataset
+
+def load_celeba_dataset(filepath: str):
+    # eventually creates empty directories
+    if not exists(filepath):
+        raise Exception(f"{filepath} not found")
+
+    celeba_dataset = []
+    for image_filename in listdir(filepath):
+        image_filepath = join(filepath, image_filename)
+        image = transforms.ToTensor()(Image.open(image_filepath).convert("RGB"))
+        celeba_dataset += [(image, None)]
+    return celeba_dataset
+
+
+
 
 
 def read_json(filepath: str):

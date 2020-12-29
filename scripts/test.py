@@ -10,10 +10,11 @@ import torch
 from torch import nn, optim
 from torchvision import transforms
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 
 from models import FaceRecognitionModel
 import utils
-from utils import load_lfw_dataset, read_json
+from utils import load_lfw_dataset, load_celeba_dataset, read_json, show_img
 
 
 def test(model: nn.Module, data: DataLoader,
@@ -31,6 +32,7 @@ def test(model: nn.Module, data: DataLoader,
     since = time.time()
     total_y, total_y_pred, total_y_pred_scores = [], [], []
     labels = {label.item() for image, label in data.dataset}
+    scores = []
     model.eval()
 
     for i_batch, batch in enumerate(data):
@@ -49,6 +51,12 @@ def test(model: nn.Module, data: DataLoader,
         # forward pass
         with torch.no_grad():
             y_pred = model(X)
+
+        ordered_scores = np.flip(np.sort(F.softmax(y_pred, dim=-1).detach().cpu().numpy()))
+        std = np.std(ordered_scores, axis=1)
+        print(std)
+        exit()
+        scores += ordered_scores.tolist()
 
         y_pred_labels = torch.argmax(y_pred, dim=-1)
 
@@ -73,12 +81,16 @@ def test(model: nn.Module, data: DataLoader,
             "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
         }))
 
-    if plot_cmc:
-        utils.plot_cmc(y=total_y, y_pred_scores=total_y_pred_scores, title=model.name)
+    # if plot_cmc:
+    #     utils.plot_cmc(y=total_y, y_pred_scores=total_y_pred_scores, title=model.name)
 
     # if plot_roc:
     #     plot_roc_curve(y=total_y, y_pred=total_y_pred, labels=range(model.num_classes), title=model.name)
 
+    scores = np.asarray(scores)
+    std = np.std(scores, axis=1)
+    print(np.min(std), np.max(std), np.mean(std), len(std), len(std[std <= 0.04]))
+    exit()
 
 if __name__ == "__main__":
     parameters_path = join("..", "parameters.json")
@@ -102,8 +114,12 @@ if __name__ == "__main__":
                                                                "min_faces_per_person"])
     labels = {label.item() for image, label in lfw_dataset_train}
 
+    celeba_dataset = load_celeba_dataset(filepath=join(assets_path, "celeba"))
+    print(len(lfw_dataset_test), len(celeba_dataset))
+    print(lfw_dataset_test[0][0].shape, celeba_dataset[0][0].shape)
+    exit()
     lfw_dataloader_test = DataLoader(dataset=lfw_dataset_test, shuffle=True,
-                                     batch_size=parameters["training"]["batch_size"])
+                                     batch_size=parameters["test"]["batch_size"])
 
     models = [
         FaceRecognitionModel(name="plain",
