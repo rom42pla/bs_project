@@ -65,6 +65,7 @@ def load_lfw_dataset(filepath: str, min_faces_per_person: int = 20):
                                           list(zip(torch.from_numpy(X_test), torch.from_numpy(y_test)))
     return lfw_train_dataset, lfw_test_dataset
 
+
 def load_celeba_dataset(filepath: str):
     # eventually creates empty directories
     if not exists(filepath):
@@ -76,9 +77,6 @@ def load_celeba_dataset(filepath: str):
         image = transforms.ToTensor()(Image.open(image_filepath).convert("RGB"))
         celeba_dataset += [(image, None)]
     return celeba_dataset
-
-
-
 
 
 def read_json(filepath: str):
@@ -137,14 +135,16 @@ def plot_roc_curve(y, y_pred, labels, title: str = None):
     plt.tight_layout()
     plt.show()
 
+
 def plot_losses(train_losses, test_losses, title: str = None):
-    sns.lineplot(y=train_losses, x=range(1, len(train_losses)+1))
-    sns.lineplot(y=test_losses, x=range(1, len(test_losses)+1))
+    sns.lineplot(y=train_losses, x=range(1, len(train_losses) + 1))
+    sns.lineplot(y=test_losses, x=range(1, len(test_losses) + 1))
     plt.title(f'Model loss {"" if not title else title}')
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper right')
     plt.show()
+
 
 def plot_cmc(y, y_pred_scores, title: str = None):
     distance_matrix = np.asarray(y_pred_scores, dtype=np.float)
@@ -165,17 +165,18 @@ def plot_cmc(y, y_pred_scores, title: str = None):
             cms_to_plot = i
             break
 
-    sns.lineplot(y=cms[:cms_to_plot+2], x=range(1, len(cms[:cms_to_plot+2]) + 1))
+    sns.lineplot(y=cms[:cms_to_plot + 2], x=range(1, len(cms[:cms_to_plot + 2]) + 1))
     plt.title(f'CMC {"" if not title else title}')
     plt.ylabel('identification rate')
     plt.xlabel('rank')
     plt.show()
 
+
 def plot_stats(accuracies, precisions, recalls, f1_scores, title: str = None):
-    sns.lineplot(y=accuracies, x=range(1, len(accuracies)+1))
-    sns.lineplot(y=precisions, x=range(1, len(accuracies)+1))
-    sns.lineplot(y=recalls, x=range(1, len(accuracies)+1))
-    sns.lineplot(y=f1_scores, x=range(1, len(accuracies)+1))
+    sns.lineplot(y=accuracies, x=range(1, len(accuracies) + 1))
+    sns.lineplot(y=precisions, x=range(1, len(accuracies) + 1))
+    sns.lineplot(y=recalls, x=range(1, len(accuracies) + 1))
+    sns.lineplot(y=f1_scores, x=range(1, len(accuracies) + 1))
     plt.title(f'Stats {"" if not title else title}')
     plt.xlabel('epoch')
     plt.legend(['accuracy', 'precision', 'recall', 'F1 scores'], loc='lower right')
