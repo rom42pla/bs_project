@@ -13,8 +13,7 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 
 from models import FaceRecognitionModel
-import utils
-from utils import load_lfw_dataset, load_celeba_dataset, read_json, show_img
+from utils import load_lfw_dataset, load_flickr_faces_dataset, read_json, show_img, plot_roc_curve, plot_cmc
 
 
 def test(model: nn.Module, data: DataLoader,
@@ -30,8 +29,9 @@ def test(model: nn.Module, data: DataLoader,
     assert isinstance(plot_cmc, bool)
 
     since = time.time()
-    total_y, total_y_pred, total_y_pred_scores = [], [], []
-    labels = {label.item() for image, label in data.dataset}
+    total_y_open_set, total_y_pred_open_set = [], []
+    total_y_closed_set, total_y_pred_closed_set, total_y_pred_scores_closed_set = [], [], []
+    labels = {label.item() for image, label in data.dataset if label is not None}
     scores = []
     model.eval()
 
@@ -52,17 +52,22 @@ def test(model: nn.Module, data: DataLoader,
         with torch.no_grad():
             y_pred = model(X)
 
+        from pprint import pprint
         ordered_scores = np.flip(np.sort(F.softmax(y_pred, dim=-1).detach().cpu().numpy()))
-        std = np.std(ordered_scores, axis=1)
-        print(std)
-        exit()
         scores += ordered_scores.tolist()
 
-        y_pred_labels = torch.argmax(y_pred, dim=-1)
+        total_y_open_set += [0 if y[i].item() == -1 else 1
+                             for i, label in enumerate(y)]
+        total_y_pred_open_set += [0 if torch.std(F.softmax(y_pred[i], dim=-1)).item() <=0.1 else 1
+                                  for i, label in enumerate(y)]
 
-        total_y += y.detach().cpu().tolist()
-        total_y_pred += y_pred_labels.detach().cpu().tolist()
-        total_y_pred_scores += [scores.detach().cpu().tolist() for scores in y_pred]
+        total_y_closed_set += [y[i].item()
+                               for i, label in enumerate(y) if label.item() != -1]
+        y_pred_labels = torch.argmax(y_pred, dim=-1)
+        total_y_pred_closed_set += [y_pred_labels[i].item()
+                                    for i, label in enumerate(y) if label.item() != -1]
+        total_y_pred_scores_closed_set += [y_pred[i].detach().cpu().tolist()
+                                           for i, label in enumerate(y) if label.item() != -1]
 
     '''
     E N D
@@ -71,26 +76,27 @@ def test(model: nn.Module, data: DataLoader,
     '''
     time_elapsed = time.time() - since
 
-    print(pd.DataFrame(
-        index=[model.name],
-        data={
-            "accuracy": accuracy_score(y_true=total_y, y_pred=total_y_pred),
-            "precision": precision_score(y_true=total_y, y_pred=total_y_pred, average="macro"),
-            "recall": recall_score(y_true=total_y, y_pred=total_y_pred, average="macro"),
-            "f1 score": f1_score(y_true=total_y, y_pred=total_y_pred, average="macro"),
-            "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
-        }))
+    # print(pd.DataFrame(
+    #     index=[model.name],
+    #     data={
+    #         "accuracy": accuracy_score(y_true=total_y, y_pred=total_y_pred),
+    #         "precision": precision_score(y_true=total_y, y_pred=total_y_pred, average="macro"),
+    #         "recall": recall_score(y_true=total_y, y_pred=total_y_pred, average="macro"),
+    #         "f1 score": f1_score(y_true=total_y, y_pred=total_y_pred, average="macro"),
+    #         "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
+    #     }))
 
     # if plot_cmc:
     #     utils.plot_cmc(y=total_y, y_pred_scores=total_y_pred_scores, title=model.name)
 
-    # if plot_roc:
-    #     plot_roc_curve(y=total_y, y_pred=total_y_pred, labels=range(model.num_classes), title=model.name)
+    if plot_roc:
+        plot_roc_curve(y=total_y_open_set, y_pred=total_y_pred_open_set, labels=range(model.num_classes), title=model.name)
 
     scores = np.asarray(scores)
     std = np.std(scores, axis=1)
-    print(np.min(std), np.max(std), np.mean(std), len(std), len(std[std <= 0.04]))
+    print(np.min(std), np.max(std), np.mean(std), len(std), len(std[std <= np.mean(std)]))
     exit()
+
 
 if __name__ == "__main__":
     parameters_path = join("..", "parameters.json")
@@ -103,23 +109,24 @@ if __name__ == "__main__":
 
     assets_path = join("..", "assets")
 
-    lfw_path = join(assets_path, "lfw")
+    lfw_path, flickr_faces_path = join(assets_path, "lfw"), \
+                                  join(assets_path, "flickr_faces")
 
     models_path = join(assets_path, "models")
-    face_recognition_model_weights_path = join(models_path, "face_recognition_model_weights.pth")
     rrdb_pretrained_weights_path = join(models_path, "RRDB_PSNR_x4.pth")
 
     lfw_dataset_train, lfw_dataset_test = load_lfw_dataset(filepath=assets_path,
                                                            min_faces_per_person=parameters["data"][
                                                                "min_faces_per_person"])
+    flickr_dataset = load_flickr_faces_dataset(filepath=flickr_faces_path)
     labels = {label.item() for image, label in lfw_dataset_train}
 
-    celeba_dataset = load_celeba_dataset(filepath=join(assets_path, "celeba"))
-    print(len(lfw_dataset_test), len(celeba_dataset))
-    print(lfw_dataset_test[0][0].shape, celeba_dataset[0][0].shape)
-    exit()
-    lfw_dataloader_test = DataLoader(dataset=lfw_dataset_test, shuffle=True,
+    flickr_dataloader = DataLoader(dataset=flickr_dataset, shuffle=False,
+                                   batch_size=parameters["test"]["batch_size"])
+    lfw_dataloader_test = DataLoader(dataset=lfw_dataset_test, shuffle=False,
                                      batch_size=parameters["test"]["batch_size"])
+    mixed_dataloader = DataLoader(dataset=lfw_dataset_test + flickr_dataset, shuffle=True,
+                                  batch_size=parameters["test"]["batch_size"])
 
     models = [
         FaceRecognitionModel(name="plain",
@@ -187,5 +194,6 @@ if __name__ == "__main__":
             print(f"No weigths named frm_{model.name}.pth found")
             continue
 
-        test(model, data=lfw_dataloader_test, resize=True,
+        test(model, data=mixed_dataloader,
+             resize=True,
              plot_loss=True, plot_roc=True, plot_cmc=True)

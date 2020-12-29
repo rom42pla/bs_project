@@ -66,17 +66,21 @@ def load_lfw_dataset(filepath: str, min_faces_per_person: int = 20):
     return lfw_train_dataset, lfw_test_dataset
 
 
-def load_celeba_dataset(filepath: str):
+def load_flickr_faces_dataset(filepath: str):
     # eventually creates empty directories
     if not exists(filepath):
         raise Exception(f"{filepath} not found")
 
-    celeba_dataset = []
+    flickr_dataset = []
+    resizing_transforms = transforms.Compose([
+        transforms.CenterCrop((125, 94)),
+        transforms.ToTensor()
+    ])
     for image_filename in listdir(filepath):
         image_filepath = join(filepath, image_filename)
-        image = transforms.ToTensor()(Image.open(image_filepath).convert("RGB"))
-        celeba_dataset += [(image, None)]
-    return celeba_dataset
+        image = resizing_transforms(Image.open(image_filepath).convert("RGB"))
+        flickr_dataset += [(image, torch.as_tensor(-1))]
+    return flickr_dataset
 
 
 def read_json(filepath: str):
@@ -113,25 +117,17 @@ def psnr(img1, img2):
 
 
 def plot_roc_curve(y, y_pred, labels, title: str = None):
-    fpr, tpr, auc = [], [], []
-    for i_class in labels:
-        epoch_y_binary, epoch_y_pred_binary = [1 if label == i_class else 0 for label in y], \
-                                              [1 if label == i_class else 0 for label in y_pred]
-        class_fpr, class_tpr = np.zeros(len(epoch_y_binary)), np.zeros(len(epoch_y_binary))
-        for i in range(len(epoch_y_binary)):
-            tn, fp, fn, tp = confusion_matrix(epoch_y_binary[:i + 1], epoch_y_pred_binary[:i + 1],
-                                              labels=[0, 1]).ravel()
-            class_fpr[i], class_tpr[i] = (fp + 1) / (fp + tn + 1), \
-                                         (tp + 1) / (tp + fn + 1)
-        fpr += [class_fpr]
-        tpr += [class_tpr]
-        auc += [roc_auc_score(y_true=epoch_y_binary, y_score=epoch_y_pred_binary)]
+    fpr, tpr, auc = [], [], None
+    for i in range(len(y)):
+        tn, fp, fn, tp = confusion_matrix(y[:i + 1], y_pred[:i + 1],
+                                          labels=[0, 1]).ravel()
+        fpr += [(fp + 1) / (fp + tn + 1)]
+        tpr += [(tp + 1) / (tp + fn + 1)]
 
-    for i_label, label in enumerate(labels):
-        plt.plot(fpr[i_label], tpr[i_label])
-    if len(labels) <= 10:
-        plt.legend([f"Label {label}, AUC {auc}" for label, auc in zip(labels, auc)])
-    plt.title(f'ROC curve {"" if not title else title}')
+    auc = roc_auc_score(y_true=y, y_score=y_pred)
+    plt.plot(fpr, tpr)
+    # plt.legend([f"Label {label}, AUC {auc}" for label, auc in zip(labels, auc)])
+    plt.title(f'ROC curve {"" if not title else title} (AUC={auc})')
     plt.tight_layout()
     plt.show()
 
@@ -148,6 +144,7 @@ def plot_losses(train_losses, test_losses, title: str = None):
 
 def plot_cmc(y, y_pred_scores, title: str = None):
     distance_matrix = np.asarray(y_pred_scores, dtype=np.float)
+    print(len(y), len(y_pred_scores), distance_matrix.shape)
     cms = np.zeros(shape=distance_matrix.shape[0])
     for label, image_scores in zip(y, distance_matrix):
         ordered_indexes = np.flip(np.argsort(image_scores))
