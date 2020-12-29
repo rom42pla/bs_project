@@ -63,10 +63,6 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
 
             epoch_losses = np.zeros(shape=batches_to_do)
             epoch_y, epoch_y_pred = [], []
-            epoch_f1, epoch_accuracy = np.zeros(shape=batches_to_do), \
-                                       np.zeros(shape=batches_to_do)
-            epoch_ce_losses, epoch_psnrs = np.zeros(shape=batches_to_do), \
-                                           np.zeros(shape=batches_to_do)
 
             for i_batch, batch in enumerate(data):
                 # eventually early stops the training
@@ -103,10 +99,6 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
 
                 # backward pass
                 if phase == 'train':
-                    #
-                    # loss.backward()
-                    # optimizer.step()
-
                     scaler.scale(loss).backward()
                     scaler.step(optimizer)
                     scaler.update()
@@ -116,15 +108,7 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                 epoch_y += y.detach().cpu().tolist()
                 epoch_y_pred += y_pred_labels.detach().cpu().tolist()
 
-                epoch_losses[i_batch], epoch_f1[i_batch], epoch_accuracy[i_batch] = ce_loss, \
-                                                                                    f1_score(
-                                                                                        y_true=y.detach().cpu().numpy(),
-                                                                                        y_pred=y_pred_labels.cpu().numpy(),
-                                                                                        average="macro"), \
-                                                                                    accuracy_score(
-                                                                                        y_true=y.detach().cpu().numpy(),
-                                                                                        y_pred=y_pred_labels.cpu().numpy()),
-                epoch_ce_losses[i_batch], epoch_psnrs[i_batch], = ce_loss, psnr(X, X)
+                epoch_losses[i_batch] = loss
 
                 # statistics
                 if verbose and i_batch in np.linspace(start=1, stop=batches_to_do, num=1, dtype=np.int):
@@ -138,8 +122,6 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                             "phase": phase,
                             "avg loss": np.mean(epoch_losses[:i_batch]),
                             # "avg PSNR": np.mean(epoch_psnrs[:i_batch]),
-                            "avg F1": np.mean(epoch_f1[:i_batch]),
-                            "avg accuracy": np.mean(epoch_accuracy[:i_batch]),
                             "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
                         }))
 
@@ -178,10 +160,10 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
         torch.save(model.state_dict(), filepath)
         print(f"Model saved to {filepath}")
 
-    if plot_roc:
-        plot_roc_curve(y=epoch_y, y_pred=epoch_y_pred, labels=range(model.num_classes), title=model.name)
-    if plot_other_stats:
-        plot_stats(accuracies=accuracies, precisions=precisions, recalls=recalls, f1_scores=f1_scores, title=model.name)
+    # if plot_roc:
+    #     plot_roc_curve(y=epoch_y, y_pred=epoch_y_pred, labels=range(model.num_classes), title=model.name)
+    # if plot_other_stats:
+    #     plot_stats(accuracies=accuracies, precisions=precisions, recalls=recalls, f1_scores=f1_scores, title=model.name)
     if plot_loss:
         plot_losses(train_losses=train_losses, test_losses=test_losses, title=model.name)
 
