@@ -41,6 +41,8 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
     accuracies, precisions, recalls, f1_scores = [], [], [], []
     optimizer = optim.Adam(params=model.parameters(), lr=lr)
 
+    scaler = torch.cuda.amp.GradScaler()
+
     for epoch in range(epochs):
         for phase in ['train', 'val']:
             '''
@@ -75,6 +77,8 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                 X, y = batch[0].to(model.device), \
                        batch[1].to(model.device)
 
+                optimizer.zero_grad()
+
                 # resizes the image
                 if resize:
                     square_edge = min(X.shape[2:])
@@ -90,17 +94,22 @@ def train(model: nn.Module, data_train: DataLoader, data_val: DataLoader,
                         X[i_img] = data_augmentation_transforms(img)
 
                 # forward pass
-                with torch.set_grad_enabled(phase == 'train'):
-                    y_pred = model(X)
+                with torch.cuda.amp.autocast():
+                    with torch.set_grad_enabled(phase == 'train'):
+                        y_pred = model(X)
 
-                ce_loss = nn.CrossEntropyLoss()(y_pred, y)
-                loss = ce_loss
+                    ce_loss = nn.CrossEntropyLoss()(y_pred, y)
+                    loss = ce_loss
 
                 # backward pass
                 if phase == 'train':
-                    optimizer.zero_grad()
-                    loss.backward()
-                    optimizer.step()
+                    #
+                    # loss.backward()
+                    # optimizer.step()
+
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
 
                 y_pred_labels = torch.argmax(y_pred.detach().cpu(), dim=-1)
 
