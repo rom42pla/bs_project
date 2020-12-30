@@ -104,6 +104,8 @@ if __name__ == "__main__":
                                                            min_faces_per_person=parameters["data"][
                                                                "min_faces_per_person"])
     flickr_dataset = load_flickr_faces_dataset(filepath=flickr_faces_path)
+    if len(flickr_dataset) > len(lfw_dataset_test):
+        flickr_dataset = flickr_dataset[:len(lfw_dataset_test)]
 
     flickr_dataloader = DataLoader(dataset=flickr_dataset, shuffle=False,
                                    batch_size=parameters["test"]["batch_size"])
@@ -115,7 +117,6 @@ if __name__ == "__main__":
 
     # plots distribution of labels
     utils.plot_labels_distribution(y=y)
-
 
     models = [
         FaceRecognitionModel(name="plain",
