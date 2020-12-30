@@ -13,13 +13,11 @@ from PIL import Image
 
 from sklearn.model_selection import train_test_split
 from sklearn.datasets import fetch_lfw_people
-from sklearn.metrics import f1_score, accuracy_score, confusion_matrix, roc_auc_score, roc_curve
+from sklearn.metrics import auc
 
 import torch
-from torch import nn
-from torch.utils.data import Dataset, Subset, DataLoader, random_split
+from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision import transforms
-from torchvision.datasets import ImageFolder
 from torchvision.utils import save_image
 
 
@@ -116,33 +114,46 @@ def psnr(img1, img2):
     return 20 * torch.log10(1 / torch.sqrt(mse))
 
 
-def plot_roc_curve(y, y_pred, y_pred_scores, title: str = None):
+def plot_roc_curve(y, y_pred_scores, title: str = None):
     distance_matrix = np.asarray(y_pred_scores, dtype=np.float)
-    thresholds = np.asarray([0.04, 0.05, 0.10])
+    thresholds = np.asarray(np.linspace(start=0.01, stop=1, num=50, endpoint=True))
     di = np.zeros(shape=(len(thresholds), distance_matrix.shape[1]))
-    fa, gr = 0, 0
+    dir = np.zeros(shape=(len(thresholds), distance_matrix.shape[1]))
+    frr, far = np.zeros(shape=(len(thresholds))), np.zeros(shape=(len(thresholds)))
+    tg, ti = np.sum([1 for label in y if label != -1]), \
+             np.sum([1 for label in y if label == -1])
     for i_threshold, threshold in enumerate(thresholds):
+        fa, gr = 0, 0
         for label, image_scores in zip(y, distance_matrix):
             ordered_indexes = np.flip(np.argsort(image_scores))
-            if ordered_indexes[0] <= threshold:
+            ordered_scores = np.flip(np.sort(image_scores))
+            if ordered_scores[0] >= threshold:
                 if label == ordered_indexes[0]:
                     di[i_threshold, 0] += 1
                 else:
-                    rank = np.where(ordered_indexes == label)[0] if label != -1 else None
-                    if rank is not None:
+                    rank = np.where(ordered_indexes == label)[0]
+                    if rank.size > 0:
                         di[i_threshold, rank] += 1
                     fa += 1
             else:
                 gr += 1
 
-    exit()
-    # fpr, tpr, _ = roc_curve(y_true=y, y_score=y_pred, drop_intermediate=False)
-    # auc = roc_auc_score(y_true=y, y_score=y_pred)
-    # plt.plot(fpr, tpr)
-    # # plt.legend([f"Label {label}, AUC {auc}" for label, auc in zip(labels, auc)])
-    # plt.title(f'ROC curve {"" if not title else title} (AUC={auc})')
-    # plt.tight_layout()
-    # plt.show()
+        dir[i_threshold, 0] = di[i_threshold, 0] / tg
+        frr[i_threshold] = 1 - dir[i_threshold, 0]
+        far[i_threshold] = fa / ti
+
+        for k in range(1, distance_matrix.shape[0]):
+            if di[i_threshold, k] == 0:
+                break
+            dir[i_threshold, k] = di[i_threshold, k] / tg + dir[i_threshold, k - 1]
+
+    sns.lineplot(y=dir[:, 0], x=far)
+    plt.xlabel('FAR (False Acceptance Rate)')
+    plt.ylabel('DIR (Detect and Identification Rate)')
+    plt.title(f'Watchlist ROC {"" if not title else title} '
+              f'(AUC={np.round(auc(far, dir[:, 0]), 4)})')
+    plt.tight_layout()
+    plt.show()
 
 
 def plot_losses(train_losses, test_losses, title: str = None):
@@ -152,6 +163,7 @@ def plot_losses(train_losses, test_losses, title: str = None):
     plt.ylabel('loss')
     plt.xlabel('epoch')
     plt.legend(['train', 'test'], loc='upper right')
+    plt.tight_layout()
     plt.show()
 
 
@@ -179,15 +191,5 @@ def plot_cmc(y, y_pred_scores, title: str = None):
     plt.title(f'CMC {"" if not title else title}')
     plt.ylabel('identification rate')
     plt.xlabel('rank')
-    plt.show()
-
-
-def plot_stats(accuracies, precisions, recalls, f1_scores, title: str = None):
-    sns.lineplot(y=accuracies, x=range(1, len(accuracies) + 1))
-    sns.lineplot(y=precisions, x=range(1, len(accuracies) + 1))
-    sns.lineplot(y=recalls, x=range(1, len(accuracies) + 1))
-    sns.lineplot(y=f1_scores, x=range(1, len(accuracies) + 1))
-    plt.title(f'Stats {"" if not title else title}')
-    plt.xlabel('epoch')
-    plt.legend(['accuracy', 'precision', 'recall', 'F1 scores'], loc='lower right')
+    plt.tight_layout()
     plt.show()

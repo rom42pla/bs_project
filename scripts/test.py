@@ -13,7 +13,8 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 
 from models import FaceRecognitionModel
-from utils import load_lfw_dataset, load_flickr_faces_dataset, read_json, show_img, plot_roc_curve, plot_cmc
+import utils
+from utils import load_lfw_dataset, load_flickr_faces_dataset, read_json, show_img
 
 
 def test(model: nn.Module, data: DataLoader,
@@ -56,19 +57,19 @@ def test(model: nn.Module, data: DataLoader,
         ordered_scores = np.flip(np.sort(F.softmax(y_pred, dim=-1).detach().cpu().numpy()))
         scores += ordered_scores.tolist()
 
-        total_y_open_set += [0 if y[i].item() == -1 else 1
+        total_y_open_set += [y[i].item()
                              for i, label in enumerate(y)]
         total_y_pred_open_set += [0 if torch.std(F.softmax(y_pred[i], dim=-1)).item() <= 0.1 else 1
                                   for i, label in enumerate(y)]
-        total_y_scores_open_set += [y_pred[i].detach().cpu().tolist()
-                                           for i, label in enumerate(y)]
+        total_y_scores_open_set += [F.softmax(y_pred[i], dim=-1).detach().cpu().tolist()
+                                    for i, label in enumerate(y)]
 
         total_y_closed_set += [y[i].item()
                                for i, label in enumerate(y) if label.item() != -1]
         y_pred_labels = torch.argmax(y_pred, dim=-1)
         total_y_pred_closed_set += [y_pred_labels[i].item()
                                     for i, label in enumerate(y) if label.item() != -1]
-        total_y_pred_scores_closed_set += [y_pred[i].detach().cpu().tolist()
+        total_y_pred_scores_closed_set += [F.softmax(y_pred[i], dim=-1).detach().cpu().tolist()
                                            for i, label in enumerate(y) if label.item() != -1]
 
     '''
@@ -88,11 +89,13 @@ def test(model: nn.Module, data: DataLoader,
     #         "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
     #     }))
 
-    # if plot_cmc:
-    #     utils.plot_cmc(y=total_y, y_pred_scores=total_y_pred_scores, title=model.name)
+    if plot_cmc:
+        utils.plot_cmc(y=total_y_closed_set, y_pred_scores=total_y_pred_scores_closed_set,
+                       title=model.name)
 
     if plot_roc:
-        plot_roc_curve(y=total_y_open_set, y_pred=total_y_pred_open_set, y_pred_scores=total_y_scores_open_set, title=model.name)
+        utils.plot_roc_curve(y=total_y_open_set, y_pred_scores=total_y_scores_open_set,
+                             title=model.name)
 
     scores = np.asarray(scores)
     std = np.std(scores, axis=1)
@@ -199,3 +202,4 @@ if __name__ == "__main__":
         test(model, data=mixed_dataloader,
              resize=True,
              plot_loss=True, plot_roc=True, plot_cmc=True)
+        break
