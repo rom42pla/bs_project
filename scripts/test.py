@@ -30,17 +30,14 @@ def test(model: nn.Module, data: DataLoader,
     assert isinstance(plot_cmc, bool)
 
     since = time.time()
-    total_y_open_set, total_y_pred_open_set, total_y_scores_open_set = [], [], []
+    total_y_open_set, total_y_pred_open_set, total_y_pred_scores_open_set = [], [], []
     total_y_closed_set, total_y_pred_closed_set, total_y_pred_scores_closed_set = [], [], []
-    labels = {label.item() for image, label in data.dataset if label is not None}
-    scores = []
     model.eval()
 
     for i_batch, batch in enumerate(data):
         # gets input data
         X, y = batch[0].to(model.device), \
                batch[1].to(model.device)
-
         # resizes the image
         if resize:
             square_edge = min(X.shape[2:])
@@ -53,23 +50,14 @@ def test(model: nn.Module, data: DataLoader,
         with torch.no_grad():
             y_pred = model(X)
 
-        from pprint import pprint
-        ordered_scores = np.flip(np.sort(F.softmax(y_pred, dim=-1).detach().cpu().numpy()))
-        scores += ordered_scores.tolist()
-
         total_y_open_set += [y[i].item()
                              for i, label in enumerate(y)]
-        total_y_pred_open_set += [0 if torch.std(F.softmax(y_pred[i], dim=-1)).item() <= 0.1 else 1
-                                  for i, label in enumerate(y)]
-        total_y_scores_open_set += [F.softmax(y_pred[i], dim=-1).detach().cpu().tolist()
-                                    for i, label in enumerate(y)]
+        total_y_pred_scores_open_set += [y_pred[i].detach().cpu().tolist()
+                                         for i, label in enumerate(y)]
 
         total_y_closed_set += [y[i].item()
                                for i, label in enumerate(y) if label.item() != -1]
-        y_pred_labels = torch.argmax(y_pred, dim=-1)
-        total_y_pred_closed_set += [y_pred_labels[i].item()
-                                    for i, label in enumerate(y) if label.item() != -1]
-        total_y_pred_scores_closed_set += [F.softmax(y_pred[i], dim=-1).detach().cpu().tolist()
+        total_y_pred_scores_closed_set += [y_pred[i].detach().cpu().tolist()
                                            for i, label in enumerate(y) if label.item() != -1]
 
     '''
@@ -79,28 +67,19 @@ def test(model: nn.Module, data: DataLoader,
     '''
     time_elapsed = time.time() - since
 
-    # print(pd.DataFrame(
-    #     index=[model.name],
-    #     data={
-    #         "accuracy": accuracy_score(y_true=total_y, y_pred=total_y_pred),
-    #         "precision": precision_score(y_true=total_y, y_pred=total_y_pred, average="macro"),
-    #         "recall": recall_score(y_true=total_y, y_pred=total_y_pred, average="macro"),
-    #         "f1 score": f1_score(y_true=total_y, y_pred=total_y_pred, average="macro"),
-    #         "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
-    #     }))
+    print(pd.DataFrame(
+        index=[model.name],
+        data={
+            "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
+        }))
 
     if plot_cmc:
         utils.plot_cmc(y=total_y_closed_set, y_pred_scores=total_y_pred_scores_closed_set,
                        title=model.name)
 
     if plot_roc:
-        utils.plot_roc_curve(y=total_y_open_set, y_pred_scores=total_y_scores_open_set,
+        utils.plot_roc_curve(y=total_y_open_set, y_pred_scores=total_y_pred_scores_open_set,
                              title=model.name)
-
-    scores = np.asarray(scores)
-    std = np.std(scores, axis=1)
-    print(np.min(std), np.max(std), np.mean(std), len(std), len(std[std <= np.mean(std)]))
-    exit()
 
 
 if __name__ == "__main__":
@@ -142,38 +121,38 @@ if __name__ == "__main__":
                              noise_prob=parameters["training"]["noise_prob"],
                              resnet_pretrained=True,
                              rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
-        FaceRecognitionModel(name="n",
-                             num_classes=len(labels),
-                             add_noise=True,
-                             do_denoising=False,
-                             do_super_resolution=False,
-                             noise_prob=parameters["training"]["noise_prob"],
-                             resnet_pretrained=True,
-                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
-        FaceRecognitionModel(name="n_dn",
-                             num_classes=len(labels),
-                             add_noise=True,
-                             do_denoising=True,
-                             do_super_resolution=False,
-                             noise_prob=parameters["training"]["noise_prob"],
-                             resnet_pretrained=True,
-                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
-        FaceRecognitionModel(name="SR",
-                             num_classes=len(labels),
-                             add_noise=False,
-                             do_denoising=False,
-                             do_super_resolution=True,
-                             noise_prob=parameters["training"]["noise_prob"],
-                             resnet_pretrained=True,
-                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
-        FaceRecognitionModel(name="n_SR",
-                             num_classes=len(labels),
-                             add_noise=True,
-                             do_denoising=False,
-                             do_super_resolution=True,
-                             noise_prob=parameters["training"]["noise_prob"],
-                             resnet_pretrained=True,
-                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+        # FaceRecognitionModel(name="n",
+        #                      num_classes=len(labels),
+        #                      add_noise=True,
+        #                      do_denoising=False,
+        #                      do_super_resolution=False,
+        #                      noise_prob=parameters["training"]["noise_prob"],
+        #                      resnet_pretrained=True,
+        #                      rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+        # FaceRecognitionModel(name="n_dn",
+        #                      num_classes=len(labels),
+        #                      add_noise=True,
+        #                      do_denoising=True,
+        #                      do_super_resolution=False,
+        #                      noise_prob=parameters["training"]["noise_prob"],
+        #                      resnet_pretrained=True,
+        #                      rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+        # FaceRecognitionModel(name="SR",
+        #                      num_classes=len(labels),
+        #                      add_noise=False,
+        #                      do_denoising=False,
+        #                      do_super_resolution=True,
+        #                      noise_prob=parameters["training"]["noise_prob"],
+        #                      resnet_pretrained=True,
+        #                      rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+        # FaceRecognitionModel(name="n_SR",
+        #                      num_classes=len(labels),
+        #                      add_noise=True,
+        #                      do_denoising=False,
+        #                      do_super_resolution=True,
+        #                      noise_prob=parameters["training"]["noise_prob"],
+        #                      resnet_pretrained=True,
+        #                      rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
         FaceRecognitionModel(name="n_dn_SR",
                              num_classes=len(labels),
                              add_noise=True,
@@ -182,14 +161,14 @@ if __name__ == "__main__":
                              noise_prob=parameters["training"]["noise_prob"],
                              resnet_pretrained=True,
                              rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
-        FaceRecognitionModel(name="n_SR_dn",
-                             num_classes=len(labels),
-                             add_noise=True,
-                             do_denoising=True, denoise_before_sr=False,
-                             do_super_resolution=True,
-                             noise_prob=parameters["training"]["noise_prob"],
-                             resnet_pretrained=True,
-                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+        # FaceRecognitionModel(name="n_SR_dn",
+        #                      num_classes=len(labels),
+        #                      add_noise=True,
+        #                      do_denoising=True, denoise_before_sr=False,
+        #                      do_super_resolution=True,
+        #                      noise_prob=parameters["training"]["noise_prob"],
+        #                      resnet_pretrained=True,
+        #                      rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
     ]
 
     for model in models:
@@ -199,7 +178,6 @@ if __name__ == "__main__":
             print(f"No weigths named frm_{model.name}.pth found")
             continue
 
-        test(model, data=mixed_dataloader,
-             resize=True,
-             plot_loss=True, plot_roc=True, plot_cmc=True)
+        test(model, data=mixed_dataloader, resize=True,
+             plot_roc=True, plot_cmc=True)
         break

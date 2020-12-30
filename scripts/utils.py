@@ -114,19 +114,35 @@ def psnr(img1, img2):
     return 20 * torch.log10(1 / torch.sqrt(mse))
 
 
+def plot_losses(train_losses, test_losses, title: str = None):
+    # plots the loss chart
+    sns.lineplot(y=train_losses, x=range(1, len(train_losses) + 1))
+    sns.lineplot(y=test_losses, x=range(1, len(test_losses) + 1))
+    plt.title(f'Loss {"" if not title else f"for model {title}"}')
+    plt.xlabel('epoch')
+    plt.ylabel('loss')
+    plt.legend(['train', 'test'], loc='upper right')
+    plt.tight_layout()
+    plt.show()
+
+
 def plot_roc_curve(y, y_pred_scores, title: str = None):
-    distance_matrix = np.asarray(y_pred_scores, dtype=np.float)
+    # data structures
     thresholds = np.asarray(np.linspace(start=0.01, stop=1, num=50, endpoint=True))
-    di = np.zeros(shape=(len(thresholds), distance_matrix.shape[1]))
-    dir = np.zeros(shape=(len(thresholds), distance_matrix.shape[1]))
+    distance_matrix = np.asarray(y_pred_scores, dtype=np.float)
+    di, dir = np.zeros(shape=(len(thresholds), distance_matrix.shape[1])), \
+              np.zeros(shape=(len(thresholds), distance_matrix.shape[1]))
     frr, far = np.zeros(shape=(len(thresholds))), np.zeros(shape=(len(thresholds)))
     tg, ti = np.sum([1 for label in y if label != -1]), \
              np.sum([1 for label in y if label == -1])
+    # loops over each threshold
     for i_threshold, threshold in enumerate(thresholds):
         fa, gr = 0, 0
+        # loops over each probe
         for label, image_scores in zip(y, distance_matrix):
-            ordered_indexes = np.flip(np.argsort(image_scores))
-            ordered_scores = np.flip(np.sort(image_scores))
+            ordered_indexes, ordered_scores = np.flip(np.argsort(image_scores)), \
+                                              np.flip(np.sort(image_scores))
+            # if the system is sure this probe is in the gallery
             if ordered_scores[0] >= threshold:
                 if label == ordered_indexes[0]:
                     di[i_threshold, 0] += 1
@@ -138,57 +154,67 @@ def plot_roc_curve(y, y_pred_scores, title: str = None):
             else:
                 gr += 1
 
+        # rates
         dir[i_threshold, 0] = di[i_threshold, 0] / tg
-        frr[i_threshold] = 1 - dir[i_threshold, 0]
-        far[i_threshold] = fa / ti
-
+        far[i_threshold], frr[i_threshold] = fa / ti, \
+                                             1 - dir[i_threshold, 0]
+        # updates DIR
         for k in range(1, distance_matrix.shape[0]):
             if di[i_threshold, k] == 0:
                 break
             dir[i_threshold, k] = di[i_threshold, k] / tg + dir[i_threshold, k - 1]
 
+    # plots the ROC curve
     sns.lineplot(y=dir[:, 0], x=far)
     plt.xlabel('FAR (False Acceptance Rate)')
     plt.ylabel('DIR (Detect and Identification Rate)')
-    plt.title(f'Watchlist ROC {"" if not title else title} '
+    plt.title(f'Watchlist ROC {"" if not title else f"for model {title}"}\n'
               f'(AUC={np.round(auc(far, dir[:, 0]), 4)})')
     plt.tight_layout()
     plt.show()
 
-
-def plot_losses(train_losses, test_losses, title: str = None):
-    sns.lineplot(y=train_losses, x=range(1, len(train_losses) + 1))
-    sns.lineplot(y=test_losses, x=range(1, len(test_losses) + 1))
-    plt.title(f'Model loss {"" if not title else title}')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper right')
+    # plots the EER
+    i_err = np.argmin(np.abs(far - frr))
+    sns.lineplot(y=far, x=thresholds)
+    sns.lineplot(y=frr, x=thresholds)
+    plt.xlabel('thresholds')
+    plt.ylabel('rate')
+    plt.title(f'FAR and FRR {"" if not title else f"for model {title}"}\n'
+              f'(EER={far[i_err]})')
+    plt.annotate("EER", (thresholds[i_err], far[i_err] + 0.025))
+    plt.plot(thresholds[i_err], far[i_err], "ro")
+    plt.legend(["FAR (False Acceptance Rate)", "FRR (False Rejection Rate)"])
     plt.tight_layout()
     plt.show()
 
 
-def plot_cmc(y, y_pred_scores, title: str = None):
+def plot_cmc(y, y_pred_scores,
+             title: str = None):
+    # data structures
     distance_matrix = np.asarray(y_pred_scores, dtype=np.float)
-    print(len(y), len(y_pred_scores), distance_matrix.shape)
     cms = np.zeros(shape=distance_matrix.shape[0])
+    # loops over each probe
     for label, image_scores in zip(y, distance_matrix):
         ordered_indexes = np.flip(np.argsort(image_scores))
         rank = np.where(ordered_indexes == label)[0]
         cms[rank] += 1
 
     cms[0] = cms[0] / distance_matrix.shape[0]
-    recognition_rate = cms[0]
+    # recognition_rate = cms[0]
     for k in range(1, distance_matrix.shape[0]):
         cms[k] = cms[k] / distance_matrix.shape[0] + cms[k - 1]
 
+    # trims unuseful parts of the plot
     cms_to_plot = 0
     for i in range(len(cms)):
         if np.allclose(cms[i:], cms[i]):
             cms_to_plot = i
             break
 
+    # plots the CMC
     sns.lineplot(y=cms[:cms_to_plot + 2], x=range(1, len(cms[:cms_to_plot + 2]) + 1))
-    plt.title(f'CMC {"" if not title else title}')
+    plt.title(f'CMC {"" if not title else f"for model {title}"}\n'
+              f'(CMS(5)={np.round(cms[5], 4)}, CMS(10)={np.round(cms[10], 4)})')
     plt.ylabel('identification rate')
     plt.xlabel('rank')
     plt.tight_layout()

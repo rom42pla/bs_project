@@ -81,7 +81,7 @@ class Classifier(CustomModule):
         out = self.layers(X)
 
         if not self.training:
-            out = F.log_softmax(out, dim=-1)
+            out = F.softmax(out, dim=-1)
         return out
 
 
