@@ -18,26 +18,26 @@ from utils import load_lfw_dataset, load_flickr_faces_dataset, read_json, show_i
 
 
 def test(model: nn.Module, data: DataLoader,
-         verbose: bool = True, resize: bool = False,
-         plot_roc: bool = False, plot_loss: bool = True, plot_cmc: bool = True):
+         resize: bool = False,
+         plot_roc: bool = False, plot_cmc: bool = True):
     # checks about model's parameters
     assert isinstance(model, nn.Module)
     assert isinstance(data, DataLoader)
     # checks on other parameters
-    assert isinstance(verbose, bool)
-    assert isinstance(plot_loss, bool)
+    assert isinstance(resize, bool)
     assert isinstance(plot_roc, bool)
     assert isinstance(plot_cmc, bool)
 
     since = time.time()
-    total_y_open_set, total_y_pred_open_set, total_y_pred_scores_open_set = [], [], []
-    total_y_closed_set, total_y_pred_closed_set, total_y_pred_scores_closed_set = [], [], []
+    total_y_open_set, total_y_pred_scores_open_set = [], []
+    total_y_closed_set, total_y_pred_scores_closed_set = [], []
     model.eval()
 
     for i_batch, batch in enumerate(data):
         # gets input data
         X, y = batch[0].to(model.device), \
                batch[1].to(model.device)
+
         # resizes the image
         if resize:
             square_edge = min(X.shape[2:])
@@ -50,11 +50,12 @@ def test(model: nn.Module, data: DataLoader,
         with torch.no_grad():
             y_pred = model(X)
 
+        # wraps the results for the open set part of the task
         total_y_open_set += [y[i].item()
                              for i, label in enumerate(y)]
         total_y_pred_scores_open_set += [y_pred[i].detach().cpu().tolist()
                                          for i, label in enumerate(y)]
-
+        # wraps the results for the closed set part of the task
         total_y_closed_set += [y[i].item()
                                for i, label in enumerate(y) if label.item() != -1]
         total_y_pred_scores_closed_set += [y_pred[i].detach().cpu().tolist()
@@ -103,7 +104,6 @@ if __name__ == "__main__":
                                                            min_faces_per_person=parameters["data"][
                                                                "min_faces_per_person"])
     flickr_dataset = load_flickr_faces_dataset(filepath=flickr_faces_path)
-    labels = {label.item() for image, label in lfw_dataset_train}
 
     flickr_dataloader = DataLoader(dataset=flickr_dataset, shuffle=False,
                                    batch_size=parameters["test"]["batch_size"])
@@ -111,10 +111,15 @@ if __name__ == "__main__":
                                      batch_size=parameters["test"]["batch_size"])
     mixed_dataloader = DataLoader(dataset=lfw_dataset_test + flickr_dataset, shuffle=True,
                                   batch_size=parameters["test"]["batch_size"])
+    y = [label.item() for _, label in mixed_dataloader.dataset]
+
+    # plots distribution of labels
+    utils.plot_labels_distribution(y=y)
+
 
     models = [
         FaceRecognitionModel(name="plain",
-                             num_classes=len(labels),
+                             num_classes=len(set(y) - {-1}),
                              add_noise=False,
                              do_denoising=False,
                              do_super_resolution=False,
@@ -122,7 +127,7 @@ if __name__ == "__main__":
                              resnet_pretrained=True,
                              rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
         # FaceRecognitionModel(name="n",
-        #                      num_classes=len(labels),
+        #                      num_classes=len(set(y) - {-1}),
         #                      add_noise=True,
         #                      do_denoising=False,
         #                      do_super_resolution=False,
@@ -130,7 +135,7 @@ if __name__ == "__main__":
         #                      resnet_pretrained=True,
         #                      rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
         # FaceRecognitionModel(name="n_dn",
-        #                      num_classes=len(labels),
+        #                      num_classes=len(set(y) - {-1}),
         #                      add_noise=True,
         #                      do_denoising=True,
         #                      do_super_resolution=False,
@@ -138,7 +143,7 @@ if __name__ == "__main__":
         #                      resnet_pretrained=True,
         #                      rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
         # FaceRecognitionModel(name="SR",
-        #                      num_classes=len(labels),
+        #                      num_classes=len(set(y) - {-1}),
         #                      add_noise=False,
         #                      do_denoising=False,
         #                      do_super_resolution=True,
@@ -146,7 +151,7 @@ if __name__ == "__main__":
         #                      resnet_pretrained=True,
         #                      rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
         # FaceRecognitionModel(name="n_SR",
-        #                      num_classes=len(labels),
+        #                      num_classes=len(set(y) - {-1}),
         #                      add_noise=True,
         #                      do_denoising=False,
         #                      do_super_resolution=True,
@@ -154,7 +159,7 @@ if __name__ == "__main__":
         #                      resnet_pretrained=True,
         #                      rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
         FaceRecognitionModel(name="n_dn_SR",
-                             num_classes=len(labels),
+                             num_classes=len(set(y) - {-1}),
                              add_noise=True,
                              do_denoising=True, denoise_before_sr=True,
                              do_super_resolution=True,
@@ -162,7 +167,7 @@ if __name__ == "__main__":
                              resnet_pretrained=True,
                              rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
         # FaceRecognitionModel(name="n_SR_dn",
-        #                      num_classes=len(labels),
+        #                      num_classes=len(set(y) - {-1}),
         #                      add_noise=True,
         #                      do_denoising=True, denoise_before_sr=False,
         #                      do_super_resolution=True,

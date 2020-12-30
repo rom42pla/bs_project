@@ -114,6 +114,21 @@ def psnr(img1, img2):
     return 20 * torch.log10(1 / torch.sqrt(mse))
 
 
+def plot_labels_distribution(y):
+    impostors, not_impostors = np.sum([1 for label in y if label == -1]), \
+                               np.sum([1 for label in y if label != -1])
+
+    fig1, ax1 = plt.subplots()
+    ax1.pie((impostors, not_impostors), labels=["Impostors", "Not impostors"], explode=(0.1, 0),
+            autopct='%1.1f%%', shadow=True, startangle=90)
+    ax1.axis('equal')
+
+    plt.title("Impostors distribution")
+    plt.tight_layout()
+    plt.show()
+    exit()
+
+
 def plot_losses(train_losses, test_losses, title: str = None):
     # plots the loss chart
     sns.lineplot(y=train_losses, x=range(1, len(train_losses) + 1))
