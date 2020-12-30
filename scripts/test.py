@@ -29,7 +29,7 @@ def test(model: nn.Module, data: DataLoader,
     assert isinstance(plot_cmc, bool)
 
     since = time.time()
-    total_y_open_set, total_y_pred_open_set = [], []
+    total_y_open_set, total_y_pred_open_set, total_y_scores_open_set = [], [], []
     total_y_closed_set, total_y_pred_closed_set, total_y_pred_scores_closed_set = [], [], []
     labels = {label.item() for image, label in data.dataset if label is not None}
     scores = []
@@ -58,8 +58,10 @@ def test(model: nn.Module, data: DataLoader,
 
         total_y_open_set += [0 if y[i].item() == -1 else 1
                              for i, label in enumerate(y)]
-        total_y_pred_open_set += [0 if torch.std(F.softmax(y_pred[i], dim=-1)).item() <=0.1 else 1
+        total_y_pred_open_set += [0 if torch.std(F.softmax(y_pred[i], dim=-1)).item() <= 0.1 else 1
                                   for i, label in enumerate(y)]
+        total_y_scores_open_set += [y_pred[i].detach().cpu().tolist()
+                                           for i, label in enumerate(y)]
 
         total_y_closed_set += [y[i].item()
                                for i, label in enumerate(y) if label.item() != -1]
@@ -90,7 +92,7 @@ def test(model: nn.Module, data: DataLoader,
     #     utils.plot_cmc(y=total_y, y_pred_scores=total_y_pred_scores, title=model.name)
 
     if plot_roc:
-        plot_roc_curve(y=total_y_open_set, y_pred=total_y_pred_open_set, labels=range(model.num_classes), title=model.name)
+        plot_roc_curve(y=total_y_open_set, y_pred=total_y_pred_open_set, y_pred_scores=total_y_scores_open_set, title=model.name)
 
     scores = np.asarray(scores)
     std = np.std(scores, axis=1)

@@ -116,14 +116,33 @@ def psnr(img1, img2):
     return 20 * torch.log10(1 / torch.sqrt(mse))
 
 
-def plot_roc_curve(y, y_pred, labels, title: str = None):
-    fpr, tpr, _ = roc_curve(y_true=y, y_score=y_pred, drop_intermediate=False)
-    auc = roc_auc_score(y_true=y, y_score=y_pred)
-    plt.plot(fpr, tpr)
-    # plt.legend([f"Label {label}, AUC {auc}" for label, auc in zip(labels, auc)])
-    plt.title(f'ROC curve {"" if not title else title} (AUC={auc})')
-    plt.tight_layout()
-    plt.show()
+def plot_roc_curve(y, y_pred, y_pred_scores, title: str = None):
+    distance_matrix = np.asarray(y_pred_scores, dtype=np.float)
+    thresholds = np.asarray([0.04, 0.05, 0.10])
+    di = np.zeros(shape=(len(thresholds), distance_matrix.shape[1]))
+    fa, gr = 0, 0
+    for i_threshold, threshold in enumerate(thresholds):
+        for label, image_scores in zip(y, distance_matrix):
+            ordered_indexes = np.flip(np.argsort(image_scores))
+            if ordered_indexes[0] <= threshold:
+                if label == ordered_indexes[0]:
+                    di[i_threshold, 0] += 1
+                else:
+                    rank = np.where(ordered_indexes == label)[0] if label != -1 else None
+                    if rank is not None:
+                        di[i_threshold, rank] += 1
+                    fa += 1
+            else:
+                gr += 1
+
+    exit()
+    # fpr, tpr, _ = roc_curve(y_true=y, y_score=y_pred, drop_intermediate=False)
+    # auc = roc_auc_score(y_true=y, y_score=y_pred)
+    # plt.plot(fpr, tpr)
+    # # plt.legend([f"Label {label}, AUC {auc}" for label, auc in zip(labels, auc)])
+    # plt.title(f'ROC curve {"" if not title else title} (AUC={auc})')
+    # plt.tight_layout()
+    # plt.show()
 
 
 def plot_losses(train_losses, test_losses, title: str = None):
