@@ -86,8 +86,6 @@ def test(model: nn.Module, data: DataLoader,
         utils.plot_roc_curve(y=total_y_open_set, y_pred_scores=total_y_pred_scores_open_set,
                              title=model.name, filepath=test_model_path)
 
-    exit()
-
 
 if __name__ == "__main__":
     parameters_path = join("..", "parameters.json")
