@@ -1,8 +1,5 @@
-from os import makedirs, remove, listdir
-from os.path import join, exists, isfile
-import urllib.request
-from hashlib import md5
-import tarfile
+from os import makedirs, listdir
+from os.path import join, exists
 import json
 
 import numpy as np

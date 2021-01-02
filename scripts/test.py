@@ -1,20 +1,17 @@
 from os.path import join
 import time
-import copy
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score
 
 import torch
-from torch import nn, optim
+from torch import nn
 from torchvision import transforms
 from torch.utils.data import DataLoader
-import torch.nn.functional as F
 
 from models import FaceRecognitionModel
 import utils
-from utils import load_lfw_dataset, load_flickr_faces_dataset, read_json, show_img
+from utils import load_lfw_dataset, load_flickr_faces_dataset, read_json
 
 
 def test(model: nn.Module, data: DataLoader,
