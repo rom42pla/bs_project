@@ -1,2 +1,6 @@
-/assets/lfw_home
 /venv/
+/.idea/
+/__pycache__/
+
+/assets/lfw_home
+/assets/test*

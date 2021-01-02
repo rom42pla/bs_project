@@ -125,7 +125,7 @@ def plot_labels_distribution(y):
     plt.show()
 
 
-def plot_losses(train_losses, test_losses, title: str = None):
+def plot_losses(train_losses, test_losses, title: str = None, filepath: str = None):
     # plots the loss chart
     sns.lineplot(y=train_losses, x=range(1, len(train_losses) + 1))
     sns.lineplot(y=test_losses, x=range(1, len(test_losses) + 1))
@@ -137,7 +137,7 @@ def plot_losses(train_losses, test_losses, title: str = None):
     plt.show()
 
 
-def plot_roc_curve(y, y_pred_scores, title: str = None):
+def plot_roc_curve(y, y_pred_scores, title: str = None, filepath: str = None):
     # data structures
     thresholds = np.asarray(np.linspace(start=0.01, stop=1, num=50, endpoint=True))
     distance_matrix = np.asarray(y_pred_scores, dtype=np.float)
@@ -182,7 +182,10 @@ def plot_roc_curve(y, y_pred_scores, title: str = None):
     plt.title(f'Watchlist ROC {"" if not title else f"for model {title}"}\n'
               f'(AUC={np.round(auc(far, dir[:, 0]), 4)})')
     plt.tight_layout()
+    if filepath:
+        plt.savefig(join(filepath, f'roc.png'))
     plt.show()
+
 
     # plots the EER
     i_err = np.argmin(np.abs(far - frr))
@@ -196,11 +199,13 @@ def plot_roc_curve(y, y_pred_scores, title: str = None):
     plt.plot(thresholds[i_err], far[i_err], "ro")
     plt.legend(["FAR (False Acceptance Rate)", "FRR (False Rejection Rate)"])
     plt.tight_layout()
+    if filepath:
+        plt.savefig(join(filepath, f'eer.png'))
     plt.show()
 
 
 def plot_cmc(y, y_pred_scores,
-             title: str = None):
+             title: str = None, filepath: str = None):
     # data structures
     distance_matrix = np.asarray(y_pred_scores, dtype=np.float)
     cms = np.zeros(shape=distance_matrix.shape[0])
@@ -228,4 +233,6 @@ def plot_cmc(y, y_pred_scores,
     plt.ylabel('identification rate')
     plt.xlabel('rank')
     plt.tight_layout()
+    if filepath:
+        plt.savefig(join(filepath, f'cmc.png'))
     plt.show()
