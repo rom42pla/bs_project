@@ -126,7 +126,6 @@ def plot_labels_distribution(y):
     plt.title("Impostors distribution")
     plt.tight_layout()
     plt.show()
-    exit()
 
 
 def plot_losses(train_losses, test_losses, title: str = None):
@@ -215,7 +214,6 @@ def plot_cmc(y, y_pred_scores,
         cms[rank] += 1
 
     cms[0] = cms[0] / distance_matrix.shape[0]
-    # recognition_rate = cms[0]
     for k in range(1, distance_matrix.shape[0]):
         cms[k] = cms[k] / distance_matrix.shape[0] + cms[k - 1]
 
@@ -229,7 +227,7 @@ def plot_cmc(y, y_pred_scores,
     # plots the CMC
     sns.lineplot(y=cms[:cms_to_plot + 2], x=range(1, len(cms[:cms_to_plot + 2]) + 1))
     plt.title(f'CMC {"" if not title else f"for model {title}"}\n'
-              f'(CMS(5)={np.round(cms[5], 4)}, CMS(10)={np.round(cms[10], 4)})')
+              f'(RR={np.round(cms[0], 4)}, CMS(5)={np.round(cms[5], 4)}, CMS(10)={np.round(cms[10], 4)})')
     plt.ylabel('identification rate')
     plt.xlabel('rank')
     plt.tight_layout()
