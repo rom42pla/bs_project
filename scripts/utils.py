@@ -88,8 +88,10 @@ def save_json(d: dict, filepath: str):
         return json.dump(d, fp, indent=4)
 
 
-def show_img(*imgs: torch.Tensor, filename: str = None, save_to_folder: str = None):
+def show_img(*imgs: torch.Tensor, titles: list = None, plot_title: str = None,
+             filename: str = None, save_to_folder: str = None):
     assert not save_to_folder or isinstance(save_to_folder, str)
+    assert not titles or (titles and len(imgs) == len(titles))
     imgs = list(imgs)
     for i_img, img in enumerate(imgs):
         assert isinstance(img, torch.Tensor)
@@ -99,8 +101,14 @@ def show_img(*imgs: torch.Tensor, filename: str = None, save_to_folder: str = No
             save_image(img, join(save_to_folder, f"{filename}.png"))
         imgs[i_img] = img.permute(1, 2, 0).detach().cpu().numpy()
     fig, axs = plt.subplots(1, len(imgs), squeeze=False)
+    fig.set_size_inches(5 * len(imgs), 5)
     for i_ax, ax in enumerate(axs.flat):
         ax.imshow(imgs[i_ax])
+        if titles:
+            ax.set_title(titles[i_ax])
+    if plot_title:
+        fig.suptitle(plot_title)
+    plt.tight_layout()
     plt.show()
 
 

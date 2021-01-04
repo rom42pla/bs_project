@@ -16,8 +16,9 @@ from utils import load_lfw_dataset, load_flickr_faces_dataset, read_json
 
 
 def test(model: nn.Module, data: DataLoader,
-         resize: bool = False,
-         plot_roc: bool = False, plot_cmc: bool = True, test_folder: str = None):
+         resize: bool = True,
+         plot_roc: bool = False, plot_cmc: bool = True, plot_images_example: bool = True,
+         test_folder: str = None):
     # checks about model's parameters
     assert isinstance(model, nn.Module)
     assert isinstance(data, DataLoader)
@@ -25,6 +26,7 @@ def test(model: nn.Module, data: DataLoader,
     assert isinstance(resize, bool)
     assert isinstance(plot_roc, bool)
     assert isinstance(plot_cmc, bool)
+    assert isinstance(plot_images_example, bool)
 
     since = time.time()
     total_y_open_set, total_y_pred_scores_open_set = [], []
@@ -46,6 +48,44 @@ def test(model: nn.Module, data: DataLoader,
 
         # forward pass
         with torch.no_grad():
+            if plot_images_example and i_batch == 0:
+                imgs_to_print, titles = [], []
+                img_original = X[0]
+                imgs_to_print += [img_original]
+                titles += ["Original"]
+                img_to_print = img_original
+                if model.add_noise:
+                    img_noisy = model.noise_adding(img_to_print.unsqueeze(0)).squeeze()
+                    imgs_to_print += [img_noisy]
+                    titles += ["Noisy"]
+                    img_to_print = img_noisy
+                if model.do_denoising and (
+                        model.do_super_resolution and model.denoise_before_sr or not model.do_super_resolution):
+                    img_denoised = model.denoiser(img_to_print.unsqueeze(0)).squeeze()
+                    imgs_to_print += [img_denoised]
+                    titles += ["Denoised"]
+                    img_to_print = img_denoised
+                    if model.do_super_resolution:
+                        img_sr = model.super_resolution_model(img_to_print.unsqueeze(0)).squeeze()
+                        imgs_to_print += [img_sr]
+                        titles += ["Super resolution"]
+                        img_to_print = img_sr
+                if model.do_denoising and (
+                        model.do_super_resolution and not model.denoise_before_sr or not model.do_super_resolution):
+                    if model.do_super_resolution:
+                        img_sr = model.super_resolution_model(img_to_print.unsqueeze(0)).squeeze()
+                        imgs_to_print += [img_sr]
+                        titles += ["Super resolution"]
+                        img_to_print = img_sr
+                    img_denoised = model.denoiser(img_to_print.unsqueeze(0)).squeeze()
+                    imgs_to_print += [img_denoised]
+                    titles += ["Denoised image"]
+                if not model.do_denoising and model.do_super_resolution:
+                    img_sr = model.super_resolution_model(img_to_print.unsqueeze(0)).squeeze()
+                    imgs_to_print += [img_sr]
+                    titles += ["Super resolution image"]
+
+                utils.show_img(*imgs_to_print, titles=titles, plot_title=f"Example from model {model.name}")
             y_pred = model(X)
 
         # wraps the results for the open set part of the task
@@ -64,14 +104,6 @@ def test(model: nn.Module, data: DataLoader,
     O F
     T E S T
     '''
-    time_elapsed = time.time() - since
-
-    print(pd.DataFrame(
-        index=[model.name],
-        data={
-            "time": "{:.0f}:{:.0f}".format(time_elapsed // 60, time_elapsed % 60)
-        }))
-
     # eventually creates a folder for this model in the test folder
     test_model_path = test_folder
     if test_folder:
@@ -174,14 +206,14 @@ if __name__ == "__main__":
                              noise_prob=parameters["training"]["noise_prob"],
                              resnet_pretrained=True,
                              rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
-        # FaceRecognitionModel(name="n_SR_dn",
-        #                      num_classes=len(set(y) - {-1}),
-        #                      add_noise=True,
-        #                      do_denoising=True, denoise_before_sr=False,
-        #                      do_super_resolution=True,
-        #                      noise_prob=parameters["training"]["noise_prob"],
-        #                      resnet_pretrained=True,
-        #                      rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
+        FaceRecognitionModel(name="n_SR_dn",
+                             num_classes=len(set(y) - {-1}),
+                             add_noise=True,
+                             do_denoising=True, denoise_before_sr=False,
+                             do_super_resolution=True,
+                             noise_prob=parameters["training"]["noise_prob"],
+                             resnet_pretrained=True,
+                             rrdb_pretrained_weights_path=rrdb_pretrained_weights_path),
     ]
 
     for model in models:
@@ -191,5 +223,6 @@ if __name__ == "__main__":
             print(f"No weigths named frm_{model.name}.pth found")
             continue
 
-        test(model, data=mixed_dataloader, resize=True,
-             plot_roc=True, plot_cmc=True, test_folder=test_path)
+        test(model, data=mixed_dataloader,
+             plot_images_example=True, plot_roc=True, plot_cmc=True,
+             test_folder=test_path)
