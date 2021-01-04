@@ -59,8 +59,7 @@ def test(model: nn.Module, data: DataLoader,
                     imgs_to_print += [img_noisy]
                     titles += ["Noisy"]
                     img_to_print = img_noisy
-                if model.do_denoising and (
-                        model.do_super_resolution and model.denoise_before_sr or not model.do_super_resolution):
+                if model.do_denoising and model.denoise_before_sr:
                     img_denoised = model.denoiser(img_to_print.unsqueeze(0)).squeeze()
                     imgs_to_print += [img_denoised]
                     titles += ["Denoised"]
@@ -70,8 +69,7 @@ def test(model: nn.Module, data: DataLoader,
                         imgs_to_print += [img_sr]
                         titles += ["Super resolution"]
                         img_to_print = img_sr
-                if model.do_denoising and (
-                        model.do_super_resolution and not model.denoise_before_sr or not model.do_super_resolution):
+                if model.do_denoising and not model.denoise_before_sr:
                     if model.do_super_resolution:
                         img_sr = model.super_resolution_model(img_to_print.unsqueeze(0)).squeeze()
                         imgs_to_print += [img_sr]
@@ -79,11 +77,11 @@ def test(model: nn.Module, data: DataLoader,
                         img_to_print = img_sr
                     img_denoised = model.denoiser(img_to_print.unsqueeze(0)).squeeze()
                     imgs_to_print += [img_denoised]
-                    titles += ["Denoised image"]
+                    titles += ["Denoised"]
                 if not model.do_denoising and model.do_super_resolution:
                     img_sr = model.super_resolution_model(img_to_print.unsqueeze(0)).squeeze()
                     imgs_to_print += [img_sr]
-                    titles += ["Super resolution image"]
+                    titles += ["Super resolution"]
 
                 utils.show_img(*imgs_to_print, titles=titles, plot_title=f"Example from model {model.name}")
             y_pred = model(X)
